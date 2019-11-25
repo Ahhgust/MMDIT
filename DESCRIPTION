@@ -1,0 +1,28 @@
+Package: MMDIT
+Type: Package
+Title: Mitochondrial mixture project
+Version: 0.1.0
+Author: August Woerner
+Maintainer: August Woerner <august.woerner@unthsc.edu>
+Description: This provides a suite of programs to analyze mito mixtures. I hope.
+License: GPL V3.0
+Encoding: UTF-8
+LazyData: true
+LinkingTo: Rcpp
+Imports: 
+    Rcpp,
+    tidyr,
+    dplyr,
+    tibble,
+    readr,
+    magrittr,
+    ggplot2,
+    stringr,
+    DBI,
+    RSQLite,
+    sqldf,
+    XLConnect,
+    seqinr,
+    Haplotypical,
+    devtools
+RoxygenNote: 7.0.1
