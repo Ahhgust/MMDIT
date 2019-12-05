@@ -6,10 +6,10 @@
 \usage{
 makeHaplotypeTable(db)
 }
+\arguments{
+\item{db}{(database handle)}
+}
 \description{
 this creates a temporary table called haplotypes
 The haplotypes table converts the difference encodings into strings (after applying the mask)
-}
-\details{
-#' @param db (database handle)
 }

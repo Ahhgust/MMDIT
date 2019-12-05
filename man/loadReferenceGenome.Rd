@@ -13,7 +13,7 @@ loadReferenceGenome(db, fastaFile)
 \arguments{
 \item{db}{(database handle)}
 
-\item{fastafile}{(must be both the name of the file and the path to open it. This is passed directly to seqinr::read.fasta}
+\item{fastaFile}{(must be both the name of the file and the path to open it. This is passed directly to seqinr::read.fasta}
 }
 \description{
 Technically any genome would work here, BUT

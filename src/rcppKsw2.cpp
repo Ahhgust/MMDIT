@@ -187,6 +187,7 @@ static inline int ksw_apply_zdrop(ksw_extz_t *ez, int is_rot, int32_t H, int a, 
 
 /*
  * And this is the source file for ksw2_extz
+ * This performs global  alignment and extension (e.g., BLAST-like alignment)
  */
 
 typedef struct { int32_t h, e; } eh_t;
@@ -322,10 +323,112 @@ void ksw_extz(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t 
   }
 }
 
+/* True global alignment
+ * From ksw_gg.c
+ *
+ */
 
-// [[Rcpp::export]]
+int ksw_gg(void *km, int qlen, const uint8_t *query, int tlen, const uint8_t *target, int8_t m, const int8_t *mat, int8_t gapo, int8_t gape, int w, int *m_cigar_, int *n_cigar_, uint32_t **cigar_)
+{
+  eh_t *eh;
+  int8_t *qp; // query profile
+  int32_t i, j, k, gapoe = gapo + gape, score, n_col, *off = 0;
+  uint8_t *z = 0; // backtrack matrix; in each cell: f<<4|e<<2|h; in principle, we can halve the memory, but backtrack will be more complex
+
+  // allocate memory
+  if (w < 0) w = tlen > qlen? tlen : qlen;
+  n_col = qlen < 2*w+1? qlen : 2*w+1; // maximum #columns of the backtrack matrix
+  qp = (int8_t*)kmalloc(km, qlen * m);
+  eh = (eh_t*)kcalloc(km, qlen + 1, 8);
+  if (m_cigar_ && n_cigar_ && cigar_) {
+    *n_cigar_ = 0;
+    z = (uint8_t*)kmalloc(km, (size_t)n_col * tlen);
+    off = (int32_t*)kcalloc(km, tlen, 4);
+  }
+
+  // generate the query profile
+  for (k = i = 0; k < m; ++k) {
+    const int8_t *p = &mat[k * m];
+    for (j = 0; j < qlen; ++j) qp[i++] = p[query[j]];
+  }
+
+  // fill the first row
+  eh[0].h = 0, eh[0].e = -gapoe - gapoe;
+  for (j = 1; j <= qlen && j <= w; ++j)
+    eh[j].h = -(gapoe + gape * (j - 1)), eh[j].e = -(gapoe + gapoe + gape * j);
+  for (; j <= qlen; ++j) eh[j].h = eh[j].e = KSW_NEG_INF; // everything is -inf outside the band
+
+  // DP loop
+  for (i = 0; i < tlen; ++i) { // target sequence is in the outer loop
+    int32_t f = KSW_NEG_INF, h1, st, en;
+    int8_t *q = &qp[target[i] * qlen];
+    st = i > w? i - w : 0;
+    en = i + w + 1 < qlen? i + w + 1 : qlen;
+    h1 = st > 0? KSW_NEG_INF : -(gapoe + gape * i);
+    f  = st > 0? KSW_NEG_INF : -(gapoe + gapoe + gape * i);
+    if (m_cigar_ && n_cigar_ && cigar_) {
+      uint8_t *zi = &z[(long)i * n_col];
+      off[i] = st;
+      for (j = st; j < en; ++j) {
+        // At the beginning of the loop: eh[j] = { H(i-1,j-1), E(i,j) }, f = F(i,j) and h1 = H(i,j-1)
+        // Cells are computed in the following order:
+        //   H(i,j)   = max{H(i-1,j-1) + S(i,j), E(i,j), F(i,j)}
+        //   E(i+1,j) = max{H(i,j)-gapo, E(i,j)} - gape
+        //   F(i,j+1) = max{H(i,j)-gapo, F(i,j)} - gape
+        eh_t *p = &eh[j];
+        int32_t h = p->h, e = p->e;
+        uint8_t d; // direction
+        p->h = h1;
+        h += q[j];
+        d = h >= e? 0 : 1;
+        h = h >= e? h : e;
+        d = h >= f? d : 2;
+        h = h >= f? h : f;
+        h1 = h;
+        h -= gapoe;
+        e -= gape;
+        d |= e > h? 0x08 : 0;
+        e  = e > h? e    : h;
+        p->e = e;
+        f -= gape;
+        d |= f > h? 0x10 : 0; // if we want to halve the memory, use one bit only, instead of two
+        f  = f > h? f    : h;
+        zi[j - st] = d; // z[i,j] keeps h for the current cell and e/f for the next cell
+      }
+    } else {
+      for (j = st; j < en; ++j) {
+        eh_t *p = &eh[j];
+        int32_t h = p->h, e = p->e;
+        p->h = h1;
+        h += q[j];
+        h = h >= e? h : e;
+        h = h >= f? h : f;
+        h1 = h;
+        h -= gapoe;
+        e -= gape;
+        e  = e > h? e : h;
+        p->e = e;
+        f -= gape;
+        f  = f > h? f : h;
+      }
+    }
+    eh[en].h = h1, eh[en].e = KSW_NEG_INF;
+  }
+
+  // backtrack
+  score = eh[qlen].h;
+  kfree(km, qp); kfree(km, eh);
+  if (m_cigar_ && n_cigar_ && cigar_) {
+    ksw_backtrack(km, 0, 0, 0, z, off, 0, n_col, tlen-1, qlen-1, m_cigar_, n_cigar_, cigar_);
+    kfree(km, z);
+    kfree(km, off);
+  }
+  return score;
+}
+
+
 void
-align(std::string Tseq, std::string Qseq, int sc_mch, int sc_mis, int gapo, int gape)
+ksw2_extz_align(std::string Tseq, std::string Qseq, int sc_mch, int sc_mis, int gapo, int gape)
 {
     int i;
     int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
@@ -354,4 +457,335 @@ align(std::string Tseq, std::string Qseq, int sc_mch, int sc_mis, int gapo, int 
 
   }
 
+//' Global alignment of 2 strings
+//'
+//' This performs global pairwise alignment between a pair of sequences.
+//' It returns the number of cigar operations
+//' and the operations (M, I, D, optionally =/X if extended CIGARs are used)
+//' (ops vector)
+//' and the operation positions (opPos vector)
+//'
+//' Written by Heng Li with small tweaks by August Woerner
+//'
+//' @param Tseq (a string from the DNA alphabet)
+//' @param Qseq (like Tseq, but different)
+//' @param opPos (integer vector that is modified. It is the position of the cigar operation)
+//' @param ops (these are the cigar operations themselves. there encoded as their integer representations, e.g., int('M')
+//' @param sc_mch (the score for a match)
+//' @param sc_mis (the penalty for a mismatch)
+//' @param gapo (gap open penalty)
+//' @param gape (gap extend penalty)
+//' @param extended (changes M [Match or Mismatch] to =/X [Match or Mismatch, respectively] in the CIGAR)
+//' @export
+// [[Rcpp::export]]
+int
+ksw2_gg_align(std::string Tseq,
+              std::string Qseq,
+              Rcpp::IntegerVector opPos,
+              Rcpp::IntegerVector ops,
+              int sc_mch=1,
+              int sc_mis=-2,
+              int gapo=2,
+              int gape=1,
+              bool extended=true
+              )
+{
+    int i, j, k, outIndex;
+    int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
+    int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+    const char *tseq = Tseq.c_str();
+    const char *qseq = Qseq.c_str();
+
+    int tl = Tseq.size(), ql = Qseq.size();
+    uint8_t *ts, *qs, c[256];
+
+    ksw_extz_t ez;
+
+    memset(&ez, 0, sizeof(ksw_extz_t));
+    memset(c, 4, 256);
+    c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
+    c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
+    ts = (uint8_t*)malloc(tl);
+    qs = (uint8_t*)malloc(ql);
+    for (i = 0; i < tl; ++i) ts[i] = c[(uint8_t)tseq[i]]; // encode to 0/1/2/3
+    for (i = 0; i < ql; ++i) qs[i] = c[(uint8_t)qseq[i]];
+    ksw_gg(0,
+           ql, qs,
+           tl, ts,
+           5,mat,
+           gapo, gape, -1,
+           &ez.m_cigar, &ez.n_cigar, &ez.cigar);
+
+    outIndex = 0;
+    for (i = 0; i < ez.n_cigar; ++i, ++outIndex) {
+
+      opPos[outIndex] = (int) ez.cigar[i]>>4;
+      ops[outIndex] = (int)"MID"[ez.cigar[i]&0xf];
+
+      if (extended) {
+        /*
+         * This translates the M tag (match or mismatch)
+         * into a combination of match tags (=)
+         * and mismatch tags ( encoded as 'X')
+        */
+        if (ops[outIndex] == (int)'M') {
+          k = opPos[outIndex]; // the length of the match/mismatch run
+          ops[outIndex] = (int)'='; // and use '=' (match) nomenclature
+
+          int previousState = (int) '=';
+          if (*tseq != *qseq) { // the first base is a mismatch
+            previousState = (int) 'X';
+            ops[outIndex] = (int) 'X'; // we know the type of event (mismatch) but not its length
+          }
+
+          int thisState;
+          int previousRun = 0;
+          for (j = 0; j < k; ++j, ++tseq, ++qseq) {
+           thisState = (int) '=';
+           if (*tseq != *qseq)
+             thisState = (int) 'X';
+
+           if (thisState != previousState) {
+              opPos[outIndex] = previousRun; // we know how long the previous event was
+              ++outIndex;
+              ops[outIndex] = thisState; // and we know what type (match XOR mismatch) the current event is
+              previousRun = 1; // and we know it's one base long (at least)
+            } else {
+             ++previousRun; // grow the run.
+            }
+            previousState = thisState; // updte the previous state
+          }
+          if (previousRun < k) { // true iff we detected at least one state transition (mismatch)
+            opPos[outIndex] = previousRun; // need to update the length of the last event
+          }
+        } else {
+          tseq += opPos[i];
+          qseq += opPos[i];
+        }
+      } else if (ops[i] == (int)'D') { // opPos bases were deleted in the target
+         tseq += opPos[i];
+      } else { // or inserted in the query.
+         qseq += opPos[i];
+      }
+    }
+
+    free(ez.cigar); free(ts); free(qs);
+    return outIndex;
+  }
+
+//' Computes a string from a difference encoding
+//'
+//' This takes the output from: ksw2_gg_align_df(Tseq, Qseq, ... ) (or other)
+//' and the reference (Tseq)
+//' and uses it to re-create Qseq.
+//' The main advantage of this approach is that particular types
+//' of mutations can be filtered, as well as variants that fall in
+//' particular regions.
+//' @param Tseq (the target sequence; e.g., the reference genome)
+//' @param positions (the positions where the sequence differences are)
+//' @param types (the types of events (0,1,2 for mismatch, deletions and insertions)
+//' @param events (the nucleotides involved with the event)
+//' @param initBuff (guess as to the final size of the query sequence. Overestimating is better than under)
+//' @export
+// [[Rcpp::export]]
+std::string
+seqdiffs2seq(std::string Tseq,
+             Rcpp::IntegerVector positions,
+             Rcpp::IntegerVector types,
+             Rcpp::StringVector events,
+             int initBuff=-1) {
+
+
+  // guess how big the output string will be...
+  int i;
+  if (initBuff < 1)
+    initBuff = Tseq.size() + (int)(Tseq.size()*0.3) + 100;
+
+  int nEvents = positions.size();
+  if (nEvents==0) // optimize for exact matching...
+    return Tseq;
+
+  // and make a nul string of that size
+  std::string query(initBuff, '\0');
+
+  char eventCode;
+  int eventPos;
+  std::string event;
+
+  int previousPos = -1;
+  int queryIndex = 0;
+
+  const char* tseq = Tseq.c_str();
+  const char* tseqHead = tseq;
+
+  for(i=0; i < nEvents; ++i) {
+    eventPos = positions[i]-1; // convert back to 0-based indexing...
+
+
+    eventCode = 'X'; // mismatch
+    if (types[i]==2)
+      eventCode= 'D';
+    else if (types[i] == 3)
+      eventCode='I';
+
+    event = events[i];
+
+    // fill in the string for all bases prior to the variation
+    if (previousPos < eventPos-1) {
+      int prevMatches = eventPos - previousPos - 1;
+      query.replace(queryIndex, prevMatches, tseq);
+      tseq += prevMatches;
+      queryIndex += prevMatches;
+    }
+
+    // and then fill in the string for all bases of the event
+    if (eventCode == 'X') {
+      query.replace(queryIndex, 1, event);
+      tseq += 1;
+      queryIndex += 1;
+    } else if (eventCode == 'D') { // deletion in the query...
+      tseq += event.size(); // by construction these are 1 unit long... but just to be safe.
+    } else { // bases inserted
+      query.replace(queryIndex, event.size(), event);
+      queryIndex += event.size();
+    }
+
+    previousPos = eventPos;
+  }
+ // record the bases *after* the last mutational event
+  int basesRemaining = Tseq.size() - (tseq-tseqHead);
+  if (basesRemaining > 0) {
+    query.replace(queryIndex, basesRemaining, tseq);
+    queryIndex += basesRemaining;
+  }
+// and adjust the memory buffer...
+  query.resize(queryIndex);
+  return query;
+}
+
+/*
+
+//' This performs global pairwise alignment between a pair of sequences.
+//' Written by Heng Li with small tweaks by August Woerner
+//'
+//' @param Tseq (the target sequence; e.g., the reference genome)
+//' @param Qseq (the query sequence)
+//' @param sc_mch (the score for a match)
+//' @param sc_mis (the penalty for a mismatch)
+//' @param gapo (gap open penalty)
+//' @param gape (gap extend penalty)
+//' @export
+// [[Rcpp::export]]
+Rcpp::DataFrame
+ksw2_seqs2seqdiffs(std::string Tseq,
+                std::string Qseq,
+                int sc_mch=1,
+                int sc_mis=-2,
+                int gapo=2,
+                int gape=1)
+  {
+    int i, j, k, outIndex;
+    int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
+    int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+    const char *tseq = Tseq.c_str();
+    const char *qseq = Qseq.c_str();
+
+    const char *tseqHead = tseq;
+
+    int tl = Tseq.size(), ql = Qseq.size();
+
+    std::vector<int> mismatchTypes; // I (insertion) D (deletion) X (Mismatch).
+    std::vector<int> mismatchPositions; // the where, in the reference sequence, for the event
+    std::vector<std::string> mismatchEvents; // the what. the bases inserted, deleted,or mismatched
+
+    uint8_t *ts, *qs, c[256];
+
+    ksw_extz_t ez;
+
+    memset(&ez, 0, sizeof(ksw_extz_t));
+    memset(c, 4, 256);
+    c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
+    c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; // build the encoding table
+    ts = (uint8_t*)malloc(tl);
+    qs = (uint8_t*)malloc(ql);
+    for (i = 0; i < tl; ++i) ts[i] = c[(uint8_t)tseq[i]]; // encode to 0/1/2/3
+    for (i = 0; i < ql; ++i) qs[i] = c[(uint8_t)qseq[i]];
+    ksw_gg(0,
+           ql, qs,
+           tl, ts,
+           5,mat,
+           gapo, gape, -1,
+           &ez.m_cigar, &ez.n_cigar, &ez.cigar);
+
+    outIndex = 0;
+
+    int op, opPos;
+
+
+
+    for (i = 0; i < ez.n_cigar; ++i, ++outIndex) {
+
+      opPos = (int) ez.cigar[i]>>4;
+      op= (int)"MID"[ez.cigar[i]&0xf];
+
+
+        //This evaluates the M tag (match or mismatch)
+        // encoding the mismatches as 'X' events
+
+        if (op == (int)'M') {
+          k = opPos; // the length of the match/mismatch run
+          for (j = 0; j < k; ++j, ++tseq, ++qseq) {
+            if (*tseq != *qseq) {
+              mismatchTypes.push_back( 1 );
+              mismatchPositions.push_back( static_cast<int>(tseq - tseqHead) + 1); // 1-based indexing...
+              mismatchEvents.push_back( std::string(qseq, 1) );
+            }
+          }
+      } else if (op == (int)'D') { // opPos bases were deleted in the query
+// each base of the deletion is encoded...
+// this makes for easy subsetting
+        for (j=0; j < opPos; ++j, ++tseq) {
+          mismatchTypes.push_back( 2 );
+          mismatchPositions.push_back( static_cast<int>(tseq - tseqHead) + 1);
+          mismatchEvents.push_back( std::string(tseq, 1) );
+        }
+      } else { // or inserted in the query.
+  // insertions get encoded as a single event.
+        mismatchTypes.push_back( 3 );
+        mismatchPositions.push_back( static_cast<int>(tseq - tseqHead) + 1);
+        mismatchEvents.push_back( std::string(qseq, opPos) );
+        qseq += opPos;
+
+      }
+    }
+
+    free(ez.cigar); free(ts); free(qs);
+    int nOps = mismatchTypes.size();
+
+
+    // Convert from c++ types to R-friendly types
+    // First, the difference types (encoded as a factor)
+
+    IntegerVector typesR(nOps);
+    typesR = mismatchTypes;
+    typesR.attr("class") = "factor";
+    CharacterVector diffTypes = CharacterVector::create("X", "D", "I");
+    typesR.attr("levels") = diffTypes;
+
+    // and the difference locations
+    IntegerVector posR(nOps);
+    posR = mismatchPositions;
+
+    // and the bases involved in the
+    StringVector eventsR(nOps);
+    eventsR = mismatchEvents;
+
+// and make a nice data frame...
+    return DataFrame::create(_["Positions"]=posR,
+                             _["Types"]=typesR,
+                             _["Events"]=eventsR,
+                             _["stringsAsFactors"] = false);
+}
+
+*/
 

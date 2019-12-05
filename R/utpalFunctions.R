@@ -60,19 +60,40 @@ write_mbop<-function(SampleID, Variant){
 #' @importFrom magrittr %>%
 #' @param EMPOP An EMPOP file (tab seperated)
 #' @param s a numeric argument that tells the function how many rows of data to skip while reading in EMPOP file
+#' @param ncol2skip number of columns to skip (starting from left) in the empop file default=3
+#' @param guess_max a number; passed to read_delim. Helps with fast reading of files...
 #' If no value is provided, the first line is ommited by default
 #'
 #' @examples
 #' #   Empop2variant("EMPOP.emp")
 #' #   Empop2variant("EMPOP.emp", s = 3)
-Empop2variant<-function(EMPOP, s = 1){
-  EMPOP<- readr::read_delim(EMPOP, delim = "\t", skip = s, col_names = FALSE) %>% # read the empop files in
-    dplyr::rename(SampleID = X1, Haplogroup = X2, Frequencies = X3)
-  LongF<- tidyr::gather(EMPOP,"Key","Variant",-SampleID, -Haplogroup, -Frequencies, factor_key = FALSE)
-  if(ncol(LongF)==3) {
-    dplyr::mutate(LongF,Variant = NA) %>% dplyr::select(-Haplogroup, -Frequencies)-> LongF
-  }
-  LongF%>%dplyr::select(SampleID, Variant) -> LongF
+Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
+  # A major bug was found with this approach causing many SNPs to be dropped.
+  # specifically, those whose column index exceeded that of the 1st individual
+  #EMPOP<- readr::read_delim(empopFile, delim = "\t", skip = s, col_names = FALSE, guess_max=guess_max) %>% # read the empop files in
+   # dplyr::rename(SampleID = X1, Haplogroup = X2, Frequencies = X3)
+#  LongF<- tidyr::gather(EMPOP,"Key","Variant",-SampleID, -Haplogroup, -Frequencies, factor_key = FALSE)
+#  if(ncol(LongF)==3) {
+ #   dplyr::mutate(LongF,Variant = NA) %>% dplyr::select(-Haplogroup, -Frequencies)-> LongF
+  #}
+  #LongF%>%dplyr::select(SampleID, Variant) -> LongF
+
+  # ; is not part of the empop file format and it is disallowed
+  e <- readr::read_delim(empopFile, skip=s, delim=";", guess_max=guess_max, col_names=FALSE, col_types=cols())
+  colnames(e)[1] <- "Variant"
+  e <- tidyr::separate(e, Variant, "SampleID", extra='drop', remove=F, sep="\t")
+  e <- tidyr::separate_rows(e, Variant, sep="\t") %>%
+    dplyr::group_by(SampleID) %>%
+    dplyr::filter(row_number() > ncol2skip) %>%
+    dplyr::ungroup() %>%
+    select(SampleID, Variant)
+  # empty strings arise as the variant in the case that the individual == rCRS
+  # 73A is what the rCRS has, so I'm going to add it in, otherwise, the downstream analyses generate a lot of NAs...
+  # e.g., 73A is what the rCRS has...
+  e <- mutate(e,
+              Variant=ifelse(Variant=="", "73A", Variant) )
+
+  return(e)
 }
 
 #' Converts 2 snp...
@@ -95,7 +116,9 @@ Variant2snp<-function(Variant){
   df2<-dplyr::rename(df1,Var = "value")%>% dplyr::select(-(1))# rename column to "Var" to be able to manipulate it downstream
   df3<-df2%>%
     tidyr::extract(Var, into=c("neg", "Pos", "Ins", "Allele"), "^([A-Z-])?(\\d+)(\\.\\d*)?([^.]*)") %>% # split Var into four columns
-    dplyr::mutate(Len=ifelse(Ins==".", 1, as.integer(sub(".", "", Ins))), # create a column "Len"
+    dplyr::mutate(
+           Pos=as.integer(Pos), # added by AW
+           Len=ifelse(Ins==".", 1, as.integer(sub(".", "", Ins))), # create a column "Len"
            Allele = dplyr::case_when(                                     # populate the columen "Allele"...
              base::grepl("^del|-", Allele, ignore.case = T)~ "",         # with an empty string if vector contains "del" or "-"
              is.na(Len) | Len==1 ~ Allele,                         # with existing string if the Len is 1 or NA
@@ -152,6 +175,7 @@ Hmtdb2Empop<-function(LUT,Pa) {
 
   empop1<- dplyr::inner_join(t, empop, by = "Amp" ) # join longfile2 with lookuptable
   dplyr::anti_join(t, empop1, by = "X6")%>%dplyr::pull(X6) -> ids # pull out all individuals that have all amps same as rCRS
+
   empop2<-dplyr::mutate(empop1, Sort =(stringr::str_extract(Variant, "\\d+"))) # create a column "Sort" and populate it with just the numbers
   #from the Variant column
   empop2$Sort<-as.numeric(empop2$Sort)#convert "Sort" into type numeric

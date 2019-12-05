@@ -48,6 +48,8 @@ refGenome <- 'rCRS.fasta'
 precisionIDBed <- "PrecisionID_mtDNA_WG_targets.bed"
 default_kit <- "PrecisionID"
 
+hmtFilename <- "Empop.tsv"
+
 # helper function.
 # Normally we send a query and then clear it. this wraps it up into 1 statement
 dbSendQueryAndClear <- function(db, query) {
@@ -57,8 +59,8 @@ dbSendQueryAndClear <- function(db, query) {
 #' Creates (an empty) MMDIT database
 #'
 #' This *creates* an EMPTY MMDIT database
-#' @param path; a directory (e.g., data)
-#' @param a filename (e.g., mmdit.sqlite3)
+#' @param path a directory (e.g., data)
+#' @param dbFilename (e.g., mmdit.sqlite3)
 #' @param overwrite (if there's already a file with that name, should I overwrite it?)
 #' and creates a database with the requisite tables in it
 #' if overwrite is FALSE, then it won't overwrite an existing database
@@ -120,17 +122,16 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
               whence TEXT,
               pop TEXT NOT NULL)" )
 
-
+# primary key is the rowid (default in SQlite)
   dbSendQueryAndClear(db, "DROP TABLE IF EXISTS full_mito_diffseqs")
   dbSendQueryAndClear(db,
             "CREATE TABLE full_mito_diffseqs
-              (genomeid INTEGER NOT NULL,
+              (
               sampleid TEXT NOT NULL,
                  position INTEGER NOT NULL,
                  event TEXT NOT NULL,
                  basecall TEXT NOT NULL,
-                 FOREIGN KEY (sampleid) REFERENCES populations(sampleid),
-                 PRIMARY KEY(genomeid)
+                 FOREIGN KEY (sampleid) REFERENCES populations(sampleid)
               )" )
 
 
@@ -187,7 +188,7 @@ initEditDists <- function(db) {
 #' i.e., in all likelihood this should *ONLY* be the rCRS sequence.
 #'
 #' @param db (database handle)
-#' @param fastafile (must be both the name of the file and the path to open it. This is passed directly to seqinr::read.fasta
+#' @param fastaFile (must be both the name of the file and the path to open it. This is passed directly to seqinr::read.fasta
 #'
 #' @examples
 #'
@@ -211,7 +212,8 @@ loadReferenceGenome <- function(db, fastaFile) {
 #' this creates a temporary table called haplotypes
 #' The haplotypes table converts the difference encodings into strings (after applying the mask)
 #'
-#' #' @param db (database handle)
+#' @param db (database handle)
+#'
 makeHaplotypeTable <- function(db) {
   dbSendQueryAndClear(db, "DROP TABLE IF EXISTS haplotypes")
 
@@ -236,8 +238,8 @@ makeHaplotypeTable <- function(db) {
 #' thus the last amplicon may "wrap around" (eg., 16541-80 is a valid locus)
 #'
 #' @param db (the database connection)
-#' @param ampfile (a BED file of amplicons; columns 2 and 3 are used only)
-#' @param kitname (the NAME of the kit that this corresponds to (e.g., PrecisionID) )
+#' @param ampFile (a BED file of amplicons; columns 2 and 3 are used only)
+#' @param kitName (the NAME of the kit that this corresponds to (e.g., PrecisionID) )
 #' @param sep (\"\\t\" for a tab-separated file. Anything else is a little wacky... no longer a bed file)
 #' @param append (whether or not the amplicons are APPENDED to the list of current amplicons; set to FALSE to overwrite)
 #'
@@ -368,5 +370,57 @@ initDB <- function() {
 }
 # close the connection...
 #dbDisconnect(db)
+
+#' reads empop
+
+#' This function takes an empop file containing at least four (mandatory) columns
+#' (refer to https://empop.online/downloads for the emp file format)
+#' and returns a tibble with two columns - SampleID and Variant
+#'
+#' @importFrom magrittr %>%
+#' @param db database handle to MMDIT
+#' @param empopFile a file of empop sequences...
+#'
+addKnownHaplotypes <- function(db, empopFile) {
+   hmt <- Empop2variant( empopFile, s=3 )
+   hmt <- tidyr::separate(hmt,
+     SampleID, c("Population"), remove=F, extra='drop')
+
+   dplyr::bind_cols(
+     hmt,
+     Variant2snp(hmt$Variant)) -> hmt
+   dplyr::mutate(hmt,
+          Type=
+            ifelse(Type=="Substitution", "X",
+                       substr(Type, 1, 1)) # insertion -> I, deletion to D
+   ) -> hmt
+
+  samps <-  DBI::dbGetQuery(db,
+                               "SELECT DISTINCT sampleid FROM populations")
+  if (samps[1,] %in% hmt$SampleID) {
+    stop("Duplicate sample IDs found!")
+    return(0)
+  }
+
+  dplyr::group_by(hmt, SampleID, Population) %>%
+    dplyr::summarize(whence=empopFile) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(sampleid=SampleID, whence, pop=Population) -> samps2add
+
+  # add the individuals to the DB
+  DBI::dbWriteTable(db, "populations", samps2add, append=TRUE)
+  # and add the difference encodings
+
+  dplyr::select(hmt, sampleid=SampleID,
+              position=Pos,
+              event=Type,
+              basecall=Allele) -> toAdd
+
+  # add the individuals to the DB
+  DBI::dbWriteTable(db, "full_mito_diffseqs", toAdd, append=TRUE)
+
+
+  return(1)
+}
 
 

@@ -13,13 +13,13 @@ loadAmpData(db, ampFile, kitName, sep = "\\t", append = TRUE)
 \arguments{
 \item{db}{(the database connection)}
 
+\item{ampFile}{(a BED file of amplicons; columns 2 and 3 are used only)}
+
+\item{kitName}{(the NAME of the kit that this corresponds to (e.g., PrecisionID) )}
+
 \item{sep}{(\"\\t\" for a tab-separated file. Anything else is a little wacky... no longer a bed file)}
 
 \item{append}{(whether or not the amplicons are APPENDED to the list of current amplicons; set to FALSE to overwrite)}
-
-\item{ampfile}{(a BED file of amplicons; columns 2 and 3 are used only)}
-
-\item{kitname}{(the NAME of the kit that this corresponds to (e.g., PrecisionID) )}
 }
 \value{
 the database handle (not necessary to keep this)

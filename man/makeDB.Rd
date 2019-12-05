@@ -7,15 +7,15 @@
 makeDB(path, dbFilename, overwrite = FALSE)
 }
 \arguments{
+\item{path}{a directory (e.g., data)}
+
+\item{dbFilename}{(e.g., mmdit.sqlite3)}
+
 \item{overwrite}{(if there's already a file with that name, should I overwrite it?)
 and creates a database with the requisite tables in it
 if overwrite is FALSE, then it won't overwrite an existing database
 in that path.
 otherwise, it will clobber what was there (use overwrite=TRUE with caution!!)}
-
-\item{path;}{a directory (e.g., data)}
-
-\item{a}{filename (e.g., mmdit.sqlite3)}
 }
 \value{
 the handle to the database (throughout all other documentation, this is db)
