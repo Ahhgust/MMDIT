@@ -19,8 +19,7 @@ library(devtools)
 library(Rcpp)
 library(DBI)
 library(RSQLite)
-library(sqldf)
-library(XLConnect)
+library(stringr)
 library(Haplotypical)
 
 
@@ -147,6 +146,24 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
 
 
   return(db)
+}
+
+
+#' Loads the database...
+#'
+#' This *loads* an EMPTY MMDIT database
+#' @param path a directory (e.g., data)
+#' @param dbFilename (e.g., mmdit.sqlite3)
+#'
+loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
+  dbFile <- paste(path, dbFilename, sep="/")
+
+  if (file.exists(dbFile)) {
+    db <- DBI::dbConnect( RSQLite::SQLite(), dbFile, loadable.extensions = TRUE)
+    RSQLite::initExtension(db)
+    return(db)
+  }
+  return(NULL)
 }
 
 #' Takes editdist3 distance into the unit-edit distance
@@ -292,7 +309,7 @@ loadAmpData <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
 #' @param kit the kit name (must be a valid KIT in the amps table)
 #' @return returns data frame with 4 columns: the amp ID, the start coordinate (0-based), the stop coordinate (1-based), and the Seq(uence) of the rcrs for the amp
 #'
-#' @example
+#' @examples
 #' # amps <- getRefAmpSeqs(db, kit="PrecisionID")
 #'
 getRefAmpSeqs <- function(db, kit=default_kit) {
@@ -368,8 +385,39 @@ initDB <- function() {
   refAmps <- getRefAmpSeqs(db)
   return(db)
 }
-# close the connection...
-#dbDisconnect(db)
+
+#' get all seqdiffs for some population
+#'
+#' @param db the database handle
+#' @param pop the population requested (defaults to all). vectorized populations okay
+#' @param ignoreIndels strips out indel events (default TRUE)
+getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE) {
+
+# optionally we want to filter out indels...
+  indelString <- ""
+  if (ignoreIndels) {
+    indelString <- " AND event = 'X'"
+  }
+  diffs <- DBI::dbGetQuery(db,
+                            paste0(
+                              "SELECT populations.sampleid, position, event, basecall ",
+                              "FROM   full_mito_diffseqs, populations ",
+                              "WHERE  populations.sampleid  = full_mito_diffseqs.sampleid ",
+                              "AND (",
+                                      "pop LIKE '",
+                                      stringr::str_c(pop, collapse="' OR pop LIKE '"),
+                                      "')" ,
+                              indelString
+                             )
+  )
+
+  return(diffs)
+}
+
+
+getPops <- function(db) {
+  dbGetQuery(db, "SELECT DISTINCT(pop) FROM populations")
+}
 
 #' reads empop
 

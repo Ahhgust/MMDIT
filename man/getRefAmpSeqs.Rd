@@ -19,3 +19,7 @@ Generates the amplicon sequences
 based on the reference sequence.
 For use with MMDIT only!
 }
+\examples{
+# amps <- getRefAmpSeqs(db, kit="PrecisionID")
+
+}

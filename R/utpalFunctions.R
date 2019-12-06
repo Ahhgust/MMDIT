@@ -58,7 +58,7 @@ write_mbop<-function(SampleID, Variant){
 #' and returns a tibble with two columns - SampleID and Variant
 #'
 #' @importFrom magrittr %>%
-#' @param EMPOP An EMPOP file (tab seperated)
+#' @param empopFile An EMPOP file (tab seperated)
 #' @param s a numeric argument that tells the function how many rows of data to skip while reading in EMPOP file
 #' @param ncol2skip number of columns to skip (starting from left) in the empop file default=3
 #' @param guess_max a number; passed to read_delim. Helps with fast reading of files...
@@ -79,18 +79,18 @@ Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
   #LongF%>%dplyr::select(SampleID, Variant) -> LongF
 
   # ; is not part of the empop file format and it is disallowed
-  e <- readr::read_delim(empopFile, skip=s, delim=";", guess_max=guess_max, col_names=FALSE, col_types=cols())
+  e <- readr::read_delim(empopFile, skip=s, delim=";", guess_max=guess_max, col_names=FALSE, col_types=readr::cols())
   colnames(e)[1] <- "Variant"
-  e <- tidyr::separate(e, Variant, "SampleID", extra='drop', remove=F, sep="\t")
-  e <- tidyr::separate_rows(e, Variant, sep="\t") %>%
+  e <- tidyr::separate(e, Variant, "SampleID", extra='drop', remove=F, sep="\t") # get the sampleiD (1st column, tab delim)
+  e <- tidyr::separate_rows(e, Variant, sep="\t") %>%  # and separate out the rest of the tabs (long-format)
     dplyr::group_by(SampleID) %>%
-    dplyr::filter(row_number() > ncol2skip) %>%
+    dplyr::filter(dplyr::row_number() > ncol2skip) %>% # removing the first 3 columns in the original encoding
     dplyr::ungroup() %>%
-    select(SampleID, Variant)
+    dplyr::select(SampleID, Variant)
   # empty strings arise as the variant in the case that the individual == rCRS
   # 73A is what the rCRS has, so I'm going to add it in, otherwise, the downstream analyses generate a lot of NAs...
   # e.g., 73A is what the rCRS has...
-  e <- mutate(e,
+  e <- dplyr::mutate(e,
               Variant=ifelse(Variant=="", "73A", Variant) )
 
   return(e)

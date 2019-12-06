@@ -7,12 +7,16 @@ This function takes an empop file containing at least four (mandatory) columns
 (refer to https://empop.online/downloads for the emp file format)
 and returns a tibble with two columns - SampleID and Variant}
 \usage{
-Empop2variant(EMPOP, s = 1)
+Empop2variant(empopFile, s = 1, ncol2skip = 3, guess_max = 100)
 }
 \arguments{
-\item{EMPOP}{An EMPOP file (tab seperated)}
+\item{empopFile}{An EMPOP file (tab seperated)}
 
-\item{s}{a numeric argument that tells the function how many rows of data to skip while reading in EMPOP file
+\item{s}{a numeric argument that tells the function how many rows of data to skip while reading in EMPOP file}
+
+\item{ncol2skip}{number of columns to skip (starting from left) in the empop file default=3}
+
+\item{guess_max}{a number; passed to read_delim. Helps with fast reading of files...
 If no value is provided, the first line is ommited by default}
 }
 \description{

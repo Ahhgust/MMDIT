@@ -663,6 +663,7 @@ seqdiffs2seq(std::string Tseq,
   return query;
 }
 
+
 /*
 
 //' This performs global pairwise alignment between a pair of sequences.
