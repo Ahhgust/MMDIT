@@ -2,4 +2,7 @@
 
 export(ksw2_gg_align)
 export(seqdiffs2seq)
+import(Rcpp)
+importFrom(Rcpp,evalCpp)
 importFrom(magrittr,"%>%")
+useDynLib(MMDIT)

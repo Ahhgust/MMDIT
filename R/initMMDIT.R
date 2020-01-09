@@ -21,7 +21,10 @@ library(DBI)
 library(RSQLite)
 library(stringr)
 library(Haplotypical)
+library(stringdist)
 
+# for reading fasta files (reference genome)
+library(seqinr)
 
 # quality of life dependencies
 suppressPackageStartupMessages( library(tibble) )
@@ -31,8 +34,7 @@ suppressPackageStartupMessages( library(magrittr) )
 
 
 
-# for reading fasta files (reference genome)
-library(seqinr)
+
 
 # CONSTANTS
 # data directory
@@ -151,7 +153,8 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
 
 #' Loads the database...
 #'
-#' This *loads* an EMPTY MMDIT database
+#' This *loads* the MMDIT database
+#' The haplotypes table will be empty (but fillable)
 #' @param path a directory (e.g., data)
 #' @param dbFilename (e.g., mmdit.sqlite3)
 #'
@@ -169,30 +172,39 @@ loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
 #' Takes editdist3 distance into the unit-edit distance
 #'
 #' @param db the database (DBI object)
-#'
+#' @param stops integer vector of iLangs (stop coords)
+#' @param tbName name of cost table (used will spellfix1)
 #' the table that lets you specify the snp/indel costs in the editdist3 function
 #' as per:
 #' https://www.sqlite.org/spellfix1.html#the_editdist3_function
-initEditDists <- function(db) {
-  dbSendQueryAndClear(db, "DROP TABLE IF EXISTS editcost")
+initEditDists <- function(db, stops=c(1), tbName="EDITCOST") {
   dbSendQueryAndClear(db,
-                    "CREATE TABLE editcost
-                      (iLang INT,
-                      cFrom TEXT,
-                      cTo   TEXT,
-                      iCost INT)")
+                      paste0("DROP TABLE IF EXISTS ",
+                             tbName) )
+  dbSendQueryAndClear(db,
+                        paste0(
+                        "CREATE TABLE " ,
+                          tbName,
+                        " (iLang INT,
+                          cFrom TEXT,
+                          cTo   TEXT,
+                          iCost INT)"
+                        )
+                      )
 
   # makes this into a true unit editdist (all costs are 1)
-  tib <- tibble::tribble(
-    ~iLang, ~cFrom, ~cTo, ~iCost,
-       0,     '',    '?',  1,
-       0,     '?',    '',  1,
-       0,     '?',  '?',   1)
-
+  # the same edit dists are made for each iLang
+    tib <- data.frame(
+      iLang=rep(unique(stops), each=3),
+      cFrom=c('', '?','?'),
+      cTo=c('?','', '?'),
+      iCost=c(1))
 
   DBI::dbWriteTable(db,
-    "editcost",
+    tbName,
     tib, append=TRUE)
+
+
 }
 #' Use this to add the rCRS sequence to MMDIT
 #' It adds the record to the table mtgenome
@@ -229,22 +241,95 @@ loadReferenceGenome <- function(db, fastaFile) {
 #' this creates a temporary table called haplotypes
 #' The haplotypes table converts the difference encodings into strings (after applying the mask)
 #'
+#' @importFrom magrittr %>%
 #' @param db (database handle)
-#'
-makeHaplotypeTable <- function(db) {
-  dbSendQueryAndClear(db, "DROP TABLE IF EXISTS haplotypes")
+#' @param sampleid (individual sample IDs from MMDIT)
+#' @param stop (stop coordinate of amplicon)
+#' @param sequence (the DNA sequence of this individual for this amplicon)
+#' @param tableName (the name of the table to be made; default="haplotypes")
+#' @param vtableName (the name of the virtual spellfix table to be made; default="sequences")
+makeHaplotypeTable <- function(db, sampleid, stopCoord, seq, tableName="haplotypes", vtableName="sequences") {
+
+# initialize table of edit distances
+  # changes the default to the unit edit distance
+  # and sets up iLangs
+  # which allow multiple amplicons to be put into the same table
+  # the default edit distance table name is EDITCOST
+  # initEditDists(db, stopCoord)
 
   dbSendQueryAndClear(db,
-                      "CREATE TEMP TABLE haplotypes
-              (hapid INTEGER NOT NULL,
-               ampid INTEGER NOT NULL,
-               sampleid TEXT NOT NULL,
-               haplotype TEXT NOT NULL,
-               haplotype_count INTEGER DEFAULT 1,
-                 FOREIGN KEY (ampid) REFERENCES amps(ampid),
-                 FOREIGN KEY (sampleid) REFERENCES populations(sampleid),
-                 PRIMARY KEY(hapid)
-               )" )
+                      paste0("DROP TABLE IF EXISTS " , tableName))
+
+  dbSendQueryAndClear(db,
+                      paste0("DROP TABLE IF EXISTS " , vtableName))
+
+
+#  dbSendQueryAndClear(db,
+ #       paste0("CREATE VIRTUAL TABLE ", vtableName ,
+  #            " USING spellfix1(edit_cost_table=EDITCOST)" )
+   #            )
+
+  tib <- tibble::tibble(sampleid=sampleid,
+                        stop=as.integer(stopCoord),
+                        seq=seq) # seqid TBD
+
+  # make a tibble of each unique haplotype for each unique amplicon
+  sngl <- dplyr::group_by(tib, stop, seq) %>%
+            dplyr::filter(dplyr::row_number()==1) %>%
+              dplyr::ungroup()
+
+  # and make an index (an int) that identifies each hap
+  sngl$seqid <- 1:nrow(sngl)
+
+  # now tib has a seq id
+  dplyr::left_join(tib,
+                   dplyr::select(sngl, stop, seq, seqid),
+                   by=c("stop", "seq")
+                   ) -> tib
+
+  DBI::dbWriteTable(db, tableName,
+                    dplyr::select(tib, sampleid, stop, seqid),
+                    append=FALSE, overwrite=TRUE,temporary=TRUE,
+                    field.types=c("sampleid"="character", "stop"="integer", "seqid"="integer"))
+
+#TODO: get ID from query. can't assign ID
+#  DBI::dbExecute(db,
+ #                    paste0('INSERT INTO ', vtableName , '(word, langid) VALUES (?, ?)'),
+  #                   params=list(sngl$seq, sngl$stop) )
+
+
+
+  DBI::dbClearResult(
+    DBI::dbSendQuery(db,
+                  paste0(
+                    "CREATE INDEX stopindex ON " ,
+                    tableName ,
+                    " (stop, seqid)" )
+                  )
+  )
+
+  return(db)
+}
+
+#' Creates temp table of *sample* haplotypes
+#'
+#' this creates a temporary table called refamps
+#' The haplotypes table converts the difference encodings into strings (after applying the mask)
+#'
+#' @param db (database handle)
+#' @param stop (stop coordinate of amplicon)
+#' @param sequence (the DNA sequence of this individual for this amplicon)
+#' @param tableName (the name of the table to be made)
+makeSampleTable <- function(db, stopCoord, seq, tableName="sampleamps") {
+
+  if (dbExistsTable(db, tableName)) {
+    dbRemoveTable(db, tableName, temporary=TRUE)
+  }
+
+  tib <- tibble::tibble(stop=as.integer(stopCoord), seq=seq)
+  DBI::dbWriteTable(db, tableName, tib,  append=FALSE, overwrite=TRUE,temporary=TRUE,
+                    field.types=c("stop"="integer", "seq"="character"))
+
   return(db)
 }
 
@@ -289,12 +374,13 @@ loadAmpData <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
     }
    }
    genomeLength <- DBI::dbGetQuery(db, "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
-   if (max(amps[,3]) > genomeLength) { # this can happen. We assume it's wrap-around coordinates
-      amps[,3] <- amps[,3] %% genomeLength
-   }
-   amps.df <- tibble::tibble(kit=kitName, start=dplyr::pull(amps,2), stop=dplyr::pull(amps,3)) # coerce into a  tibble
+   amps.df <- tibble::tibble(kit=kitName,
+                             start= as.integer(dplyr::pull(amps,2)),
+                             stop = as.integer(dplyr::pull(amps,3))) # coerce into a  tibble
    DBI::dbWriteTable(db,
-                "amps", amps.df, append=append, overwrite=overwrite)
+                "amps", amps.df, append=append, overwrite=overwrite,
+                field.types=c("kit"="character", "start"="integer","stop"="integer")
+                )
    return(db)
 }
 
@@ -313,9 +399,10 @@ loadAmpData <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
 #' # amps <- getRefAmpSeqs(db, kit="PrecisionID")
 #'
 getRefAmpSeqs <- function(db, kit=default_kit) {
+  #TODO: Take in start/stop coordinates as well as a kit.
   loc <- DBI::dbGetQuery(db,
                     sprintf(
-                    "SELECT ampid, start, stop
+                    "SELECT start, stop
                     FROM
                      amps
                     WHERE
@@ -386,23 +473,33 @@ initDB <- function() {
   return(db)
 }
 
+
+
+
+
 #' get all seqdiffs for some population
 #'
 #' @param db the database handle
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default TRUE)
-getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE) {
+#' @param kit nameof amplicon sequencing kit...
+getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE, kit=default_kit) {
 
 # optionally we want to filter out indels...
   indelString <- ""
   if (ignoreIndels) {
     indelString <- " AND event = 'X'"
   }
+  genomeLength <- DBI::dbGetQuery(db, "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
+
   diffs <- DBI::dbGetQuery(db,
                             paste0(
-                              "SELECT populations.sampleid, position, event, basecall ",
-                              "FROM   full_mito_diffseqs, populations ",
+                              "SELECT populations.sampleid, position, event, basecall, amps.start, amps.stop ",
+                              "FROM   full_mito_diffseqs, populations, amps ",
                               "WHERE  populations.sampleid  = full_mito_diffseqs.sampleid ",
+                              "AND amps.kit == '" , kit , "' ",
+                              "AND (position > amps.start AND position <= amps.stop OR ",
+                                   "position + " , genomeLength , " >amps.start AND position +" , genomeLength, " <= amps.stop)" ,
                               "AND (",
                                       "pop LIKE '",
                                       stringr::str_c(pop, collapse="' OR pop LIKE '"),
@@ -414,12 +511,201 @@ getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE) {
   return(diffs)
 }
 
-
-getPops <- function(db) {
-  dbGetQuery(db, "SELECT DISTINCT(pop) FROM populations")
+#' Length of mito-genome (reference)
+#'
+#' This is the non-circularized (concatenated)
+#' mtgenome length (16569 unless some real funny-business is happening)
+#'
+#' @param db the database handle
+getMtgenomeLength <- function(db) {
+  DBI::dbGetQuery(db,
+                  "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 }
 
-#' reads empop
+#' Mito-genome (reference) sequence
+#'
+#' Returns the self-concatenated mitochondrial reference genome
+#' Self-concatenation allows us to handle the circular alignment problem
+#' (eg, reads, amplicons that span the canonical "start" of the mt-genome)
+#' and coordinates from a circular alignment
+#'
+#' @param db the database handle
+getMtgenomeSequence <- function(db) {
+  stringr::str_dup(
+    DBI::dbGetQuery(db,
+                    "SELECT sequence FROM mtgenome LIMIT 1")[[1]],
+    2)
+}
+
+#' generates amplicon sequence data from difference encodings
+
+#' @useDynLib MMDIT
+#' @importFrom magrittr %>%
+#' @param db the database handle
+#' @param pop the population requested (defaults to all). vectorized populations okay
+#' @param ignoreIndels strips out indel events (default TRUE)
+#' @param kit the amplicon kit
+#' @param blk blacklist of sites to filter out!
+getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
+
+  mtgenomeLen <- DBI::dbGetQuery(db,
+                                 "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
+
+
+  diffs <- dplyr::filter(
+      getSeqdiffs(db, pop, ignoreIndels),
+      ! position %in% blk,
+      ! position %in% (blk+mtgenomeLen) )
+
+  refamps <-   getRefAmpSeqs(db, kit)
+  lookupcodes <- getSeqdiffCodes()
+
+  # for each individual / amplicon (with a difference to the rCRS)
+  #
+  dplyr::group_by(diffs,
+      sampleid,
+      start,
+      stop
+    ) %>%
+    dplyr::inner_join( # grab the reference sequence associated with that amplicon
+      refamps,
+      by=c("start", "stop")
+    ) %>%
+    dplyr::mutate( # deal with circular coordinates, compute the coordinate of the SNP
+      # within the amplicon
+      position=as.integer(position),
+      relpos=as.integer(ifelse(
+        position > start,
+        position - start,
+        position + mtgenomeLen - start))
+    ) %>%
+    dplyr::arrange(position) %>%
+    summarize( # and interpolate; make the string based on the string differences
+      sequence=seqdiffs2seq(
+        Seq[[1]],
+        relpos,
+        lookupcodes[ event ],
+        basecall
+        )
+      ) -> foo
+# at this point, foo only has the sequence differences.
+# any amp that is == to the rCRS is not present.
+# we add a no-op sequence difference for individuals that == the rCRS
+# (to ensure the individual isn't lost with the join)
+
+
+  base::expand.grid( # first, make a data frame with all pairs of individuals and stop coordinates
+    sampleid=unique(diffs$sampleid),
+    stop=refamps$stop, stringsAsFactors = FALSE) %>%
+    dplyr::left_join(refamps, # and add in the start and reference Seq
+              by=c("stop")) %>%
+    dplyr::left_join(foo, # and left-join with the sequence differences
+              by=c("sampleid", "start", "stop")) %>%
+    # from here, if there was a difference encoding for the amp, that amps sequence is 'sequence'
+    # otherwise it's NA (no differences to reference)
+    dplyr::mutate(sequence=ifelse(is.na(sequence), Seq, sequence)) %>% # change NAs to reference
+    dplyr::select(sampleid, start, stop, sequence) -> amps # and reorder the columns
+
+
+  return(amps)
+}
+
+#' finds nearest neighbors
+#'
+#' @param amps the output from getAllDistances
+#' @param knn the number of nearest neighbors to find (ties broken arbitrarily)
+#' @param maxdist if >-1, returns all neighbors within distance <= maxdist (ignores knn argument)
+#' @param useIdentityFunction counts the number of amplicons that differ, not the sum of the distances
+getNN <- function(alldist, knn=20, maxdist=-1, useIdentityFunction=FALSE) {
+   dplyr::group_by(alldist, sampleid) %>%
+    dplyr::summarize(DistSum=sum(dist), SumMismatch=sum(dist>0)) %>%
+    dplyr::arrange(DistSum) %>%
+    dplyr::ungroup() -> bydist
+   if (maxdist < 0) {
+    return(  head(bydist, n=knn) )
+   }
+   if (useIdentityFunction) {
+    return(  dplyr::filter(bydist, SumMismatch <= maxdist) )
+   }
+  return(  dplyr::filter(bydist, DistSum <= maxdist) )
+}
+
+#' solves the All 1NN
+#'
+#' (much) more efficient solutions exist (cover trees)
+#' O(n log n) for n individuals and a constant genome length
+#' the solution provided is O(n^2) by the same count.
+#'
+#' This looks at each individual in amps
+#' and finds the 2NN of that individual and the associated distances
+#' and the selects the 2nd individual. in theory this could give you
+#' the same individual as you queried (ties are broken arbitrarily).
+#' If you care about that... write your own :)
+#' I just want the distances!
+#'
+#' @param amps the output from getAmps
+#' @param ignoreIndels (whether or not indels were used to constitute the strings...)
+naiveGetAllNN <- function(amps, ignoreIndels=FALSE) {
+  dplyr::group_by(amps, sampleid) %>%
+    dplyr::summarize(NNDist=
+                list(
+                  getNN(
+                    getAllDistances(amps, sequence,stop, ignoreIndels=ignoreIndels),
+                    knn=2)[2,]
+
+                )
+    )
+
+}
+
+naiveGetAllNNBySampAndStop <- function(amps, ignoreIndels=FALSE) {
+  filter(amps, startsWith(sampleid, "AF_AO_000")) %>%
+  dplyr::group_by(sampleid, stop) %>%
+    dplyr::summarize(NNDist=
+                       list(
+                         getNN(
+                           getAllDistances(amps, sequence,stop, ignoreIndels=ignoreIndels),
+                           knn=2)[2,]
+
+                       )
+    )
+
+}
+
+
+writeOneNNTib <- function(amps) {
+    amps %>% naiveGetAllNN() -> all1NNTib
+  readr::write_tsv( unnest(all1NNTib), "All1NN.tsv")
+
+
+}
+
+#' generates amplicon sequence data from difference encodings
+
+#' @param amps the output from getAmps
+#' @param seqs query sequences
+#' @param stops the stop coordinate of said sequences
+#' @param ignoreIndels boolean; must match amps
+getAllDistances <- function(amps, seqs, stops, ignoreIndels=FALSE) {
+
+  tmp <- tibble::tibble(QuerySeq=seqs, stop=stops)
+  dplyr::left_join(tmp,
+                   amps,
+                   by=c("stop")) ->cmbnd
+
+  type <- "lv" # levenstein
+  if (ignoreIndels) { # choose the appropriate distance function...
+    type <- "hamming"
+  }
+  cmbnd$dist <- stringdist::stringdist(cmbnd$QuerySeq, cmbnd$sequence, method=type)
+  return(dplyr::arrange(cmbnd, stop, dist))
+}
+
+getPops <- function(db) {
+  DBI::dbGetQuery(db, "SELECT DISTINCT(pop) FROM populations")
+}
+
+#' reads empop; adds haplotypes to database
 
 #' This function takes an empop file containing at least four (mandatory) columns
 #' (refer to https://empop.online/downloads for the emp file format)
@@ -470,5 +756,6 @@ addKnownHaplotypes <- function(db, empopFile) {
 
   return(1)
 }
+
 
 
