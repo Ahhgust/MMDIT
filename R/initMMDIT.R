@@ -659,23 +659,23 @@ naiveGetAllNN <- function(amps, ignoreIndels=FALSE) {
 }
 
 naiveGetAllNNBySampAndStop <- function(amps, ignoreIndels=FALSE) {
-  filter(amps, startsWith(sampleid, "AF_AO_000")) %>%
+  amps %>%
   dplyr::group_by(sampleid, stop) %>%
     dplyr::summarize(NNDist=
                        list(
-                         getNN(
-                           getAllDistances(amps, sequence,stop, ignoreIndels=ignoreIndels),
-                           knn=2)[2,]
+                           getAllDistances(filter(amps, stop==stop), sequence,stop, ignoreIndels=ignoreIndels)[2,]
+                        )
+    ) %>% unnest()
 
-                       )
-    )
 
 }
 
 
 writeOneNNTib <- function(amps) {
-    amps %>% naiveGetAllNN() -> all1NNTib
+    amps %>% naiveGetAllNN(TRUE) -> all1NNTib
   readr::write_tsv( unnest(all1NNTib), "All1NN.tsv")
+  amps %>% naiveGetAllNNBySampAndStop(TRUE) -> all1NNByAmp
+  readr::write_tsv(all1NNByAmp, "All1NN_byAmp.tsv")
 
 
 }
