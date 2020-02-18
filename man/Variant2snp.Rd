@@ -2,7 +2,7 @@
 % Please edit documentation in R/utpalFunctions.R
 \name{Variant2snp}
 \alias{Variant2snp}
-\title{Converts 2 snp...}
+\title{Get SNPs from variant data}
 \usage{
 Variant2snp(Variant)
 }
@@ -11,8 +11,8 @@ Variant2snp(Variant)
 }
 \description{
 This function takes a vector of variants (e.g. "73G", "73+G", 73-" ) and returns a tibble
-with 3 columns : Pos, Allele and Type that contain information on the genomic position,
-nucleotide base and type of mutation (i.e. "Substitution", "Insertion" and "Deletion") respectively for each variant
+with three columns : Pos, Allele and Type that contain information on the genomic position,
+nucleotide base and type of mutation (i.e. "Substitution", "Insertion" and "Deletion")resecptively for each variant
 }
 \examples{
 # Variant2snp("73G")

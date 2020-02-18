@@ -2,7 +2,7 @@
 % Please edit documentation in R/utpalFunctions.R
 \name{write_mbop}
 \alias{write_mbop}
-\title{Makes an "empop" dataframe}
+\title{Write inforatuon on sample ID and variants in the emp file format}
 \usage{
 write_mbop(SampleID, Variant)
 }
@@ -13,13 +13,11 @@ write_mbop(SampleID, Variant)
 }
 \description{
 This function takes two vectors SampleID and Variant
-and returns a tibble in the empop format.
+and returns a tibble in the emp file format.
 Each row in the tibble will correspond to 1 individual (SampleID)
 and their empop string (tab separated) will be the value in the second column
 }
 \examples{
-
-# write_mbop("NA12871", c("73G", "95-"))
-# write_mbop(c("NA12871", "NA12871", "NA12872"), c("73G", "95-", "73G"))
-
+write_mbop("NA12871", c("73G", "95-"))
+write_mbop(c("NA12871", "NA12871", "NA12872"), c("73G", "95-", "73G"))
 }

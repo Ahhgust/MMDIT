@@ -244,8 +244,8 @@ loadReferenceGenome <- function(db, fastaFile) {
 #' @importFrom magrittr %>%
 #' @param db (database handle)
 #' @param sampleid (individual sample IDs from MMDIT)
-#' @param stop (stop coordinate of amplicon)
-#' @param sequence (the DNA sequence of this individual for this amplicon)
+#' @param stopCoord (stop coordinate of amplicon)
+#' @param seq (the DNA sequence of this individual for this amplicon)
 #' @param tableName (the name of the table to be made; default="haplotypes")
 #' @param vtableName (the name of the virtual spellfix table to be made; default="sequences")
 makeHaplotypeTable <- function(db, sampleid, stopCoord, seq, tableName="haplotypes", vtableName="sequences") {
@@ -322,8 +322,8 @@ makeHaplotypeTable <- function(db, sampleid, stopCoord, seq, tableName="haplotyp
 #' @param tableName (the name of the table to be made)
 makeSampleTable <- function(db, stopCoord, seq, tableName="sampleamps") {
 
-  if (dbExistsTable(db, tableName)) {
-    dbRemoveTable(db, tableName, temporary=TRUE)
+  if (DBI::dbExistsTable(db, tableName)) {
+    DBI::dbRemoveTable(db, tableName, temporary=TRUE)
   }
 
   tib <- tibble::tibble(stop=as.integer(stopCoord), seq=seq)
@@ -612,7 +612,7 @@ getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
 
 #' finds nearest neighbors
 #'
-#' @param amps the output from getAllDistances
+#' @param alldist the output from getAllDistances
 #' @param knn the number of nearest neighbors to find (ties broken arbitrarily)
 #' @param maxdist if >-1, returns all neighbors within distance <= maxdist (ignores knn argument)
 #' @param useIdentityFunction counts the number of amplicons that differ, not the sum of the distances
@@ -658,14 +658,30 @@ naiveGetAllNN <- function(amps, ignoreIndels=FALSE) {
 
 }
 
+#' solves the All 1NN
+#'
+#' (much) more efficient solutions exist (cover trees)
+#' O(n log n) for n individuals and a constant genome length
+#' the solution provided is O(n^2) by the same count.
+#' This version of the code finds the NN for each amplicon (not for the whole mito)
+#'
+#' This looks at each individual in amps
+#' and finds the 2NN of that individual and the associated distances
+#' and the selects the 2nd individual. in theory this could give you
+#' the same individual as you queried (ties are broken arbitrarily).
+#' If you care about that... write your own :)
+#' I just want the distances!
+#'
+#' @param amps the output from getAmps
+#' @param ignoreIndels (whether or not indels were used to constitute the strings...)
 naiveGetAllNNBySampAndStop <- function(amps, ignoreIndels=FALSE) {
   amps %>%
   dplyr::group_by(sampleid, stop) %>%
     dplyr::summarize(NNDist=
                        list(
-                           getAllDistances(filter(amps, stop==stop), sequence,stop, ignoreIndels=ignoreIndels)[2,]
+                           getAllDistances(dplyr::filter(amps, stop==stop), sequence,stop, ignoreIndels=ignoreIndels)[2,]
                         )
-    ) %>% unnest()
+    ) %>% tidyr::unnest()
 
 
 }
@@ -673,7 +689,7 @@ naiveGetAllNNBySampAndStop <- function(amps, ignoreIndels=FALSE) {
 
 writeOneNNTib <- function(amps) {
     amps %>% naiveGetAllNN(TRUE) -> all1NNTib
-  readr::write_tsv( unnest(all1NNTib), "All1NN.tsv")
+  readr::write_tsv( tidyr::unnest(all1NNTib), "All1NN.tsv")
   amps %>% naiveGetAllNNBySampAndStop(TRUE) -> all1NNByAmp
   readr::write_tsv(all1NNByAmp, "All1NN_byAmp.tsv")
 

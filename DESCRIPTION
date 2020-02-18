@@ -26,5 +26,6 @@ Imports:
     magrittr,
     ggplot2,
     stringdist,
-    stringr
+    stringr,
+    DEploid
 RoxygenNote: 7.0.2

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utpalFunctions.R
 \name{Hmtdb2Empop}
 \alias{Hmtdb2Empop}
-\title{Makes a giant empop file...}
+\title{Join mutliple EMPOP files into one large EMPOP file using a look-up table}
 \usage{
 Hmtdb2Empop(LUT, Pa)
 }
@@ -14,8 +14,6 @@ Hmtdb2Empop(LUT, Pa)
 \description{
 This function takes a lookup-table file and a path to EMPOP files
 and returns a bigger EMPOP file (i.e. all EMPOP files in the path bound together)
-Note: This function is not for general use. It was constructed specifically
-to construct haplotypes from HmtDB (https://www.hmtdb.uniba.it/) using custom up-stream processing.
 }
 \examples{
 

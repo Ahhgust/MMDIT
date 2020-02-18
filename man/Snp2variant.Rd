@@ -2,8 +2,7 @@
 % Please edit documentation in R/utpalFunctions.R
 \name{Snp2variant}
 \alias{Snp2variant}
-\title{This function takes three vectors Position, Allele and Type from the SNPs
-and returns a vector of variants (e.g. "73G", "73+G", 73-" )}
+\title{Get variants from SNP data}
 \usage{
 Snp2variant(Pos, Allele, Type)
 }
@@ -20,7 +19,7 @@ This function takes three vectors Position, Allele and Type from the SNPs
 and returns a vector of variants (e.g. "73G", "73+G", 73-" )
 }
 \examples{
-# Snp2variant("73", "G", "Substitution")
-# Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
+Snp2variant("73", "G", "Substitution")
+Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
 
 }

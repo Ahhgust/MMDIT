@@ -4,11 +4,14 @@
 \alias{initEditDists}
 \title{Takes editdist3 distance into the unit-edit distance}
 \usage{
-initEditDists(db)
+initEditDists(db, stops = c(1), tbName = "EDITCOST")
 }
 \arguments{
-\item{db}{the database (DBI object)
+\item{db}{the database (DBI object)}
 
+\item{stops}{integer vector of iLangs (stop coords)}
+
+\item{tbName}{name of cost table (used will spellfix1)
 the table that lets you specify the snp/indel costs in the editdist3 function
 as per:
 https://www.sqlite.org/spellfix1.html#the_editdist3_function}

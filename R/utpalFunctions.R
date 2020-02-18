@@ -5,6 +5,140 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(magrittr))
 suppressPackageStartupMessages(library(tibble))
 
+
+#' @title
+#' A helper function to runDeploid()that creates panel and plaf dataframes
+#'
+#' @description
+#' This function takes a long dataframe (containing differences in coding compared to the rCRS,
+#' in a select set of individuals) and returns panel and plaf dataframes
+#'
+#' @param long dataframe with information on sample ID, position and allele for a set of individuals
+#'
+#' @importFrom magrittr %>%
+#'
+#' @examples
+#' createPlafPan(long)
+createPlafPan<-function(EmpopLong) {
+  Wide<-tidyr::spread(EmpopLong, Sample.name, Nuc)#go from long format to wide again
+  Wide$POS<-as.numeric(Wide$POS)#coerce position to number to be able to sort
+  Wide<-dplyr::arrange(Wide, POS)#sort by position
+
+  # final panel formating
+  Wide[,2:ncol(Wide)]<-base::ifelse(is.na(Wide[ ,-1])==TRUE,0,1)#replace NA and AGTC with 0 and  1 respectively
+  panelFile<-Wide %>%dplyr::mutate(CHROM = "CHRM")#rename object, add mandatory CHRM column
+  panelFile<-panelFile[,c(ncol(panelFile),1:ncol(panelFile)-1)]#and reorder
+
+
+  EmpopLong %>%dplyr::group_by(POS)%>%
+    dplyr::summarise(PLAC=length(Nuc), #to get po level allele count or numerator
+                     u=length(base::unique(Nuc))) %>% # pick out the number of unique alleles
+    dplyr::filter(u <=2) ->Numerator # filter out multi-allelic positions
+  Numerator$POS<-as.numeric(Numerator$POS)# convert to numeric to allow sorting
+  plafFile<-dplyr::arrange(Numerator, POS) # sort by position
+  #add plaf column with correction
+  plafFile<-dplyr::mutate(plafFile,PLAF = base::ifelse(PLAC==0|1,
+                                                       1-(PLAC/(base::length(base::unique(EmpopLong$Sample.name))+2)), # correction formula
+                                                       PLAC/base::length(base::unique(EmpopLong$Sample.name))))
+  #final PLAF formating
+  plafFile[-c(2,3)] ->plafFile # remove unnecesary columns
+  plafFile<-plafFile %>%dplyr::mutate(CHROM = "CHRM")#rename object, add mandatory CHRM column
+  plafFile<-plafFile[,c(base::ncol(plafFile),1:base::ncol(plafFile)-1)] #and reorder
+  return(base::list(plafFile, panelFile))# return both panel and plaf dataframes as a list
+
+}
+
+#' @title
+#' A helper function to runDeploid()that harmonizes the panel
+#'
+#' @description
+#' This function takes a panel (createPlafPan object),
+#' and a vector q of sites from am AltRef (modified createAltRef object)
+#' and matches or "harmonizes" the number of sites between both dataframes
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param panel a dataframe representing a reference panel for a set of individuals (createPlafPan object)
+#' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
+#'
+#' @examples
+#' harmonize(plaf,q)
+
+#Function for harmonizing the panel so that it has the same number of sites as
+#other dEploid input
+harmonizePa<-function(panel,q) {
+
+  pan<-dplyr::full_join(panel,q)%>%dplyr::arrange(POS)# join panel and POS from alt ref keeping all rows
+  pan<-dplyr::mutate(pan, CHROM=ifelse(is.na(CHROM), "CHRM", "CHRM"))# convert all NAs in the CHROM column to CHRM
+  pan[base::is.na(pan)]<-0# convert all remaing NAs in the table to 0s
+  CVPa<-pan # save final panel dataframe to enviroment
+
+  return(CVPa) # return results of function
+}
+
+#' @title
+#' A helper function to runDeploid()that harmonizes the plaf
+#'
+#' @description
+#' This function takes a plaf (createPlafPan object),
+#' and a vector q of sites from am AltRef (modified createAltRef object)
+#' and matches or "harmonizes" the number of sites between both dataframes
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param plaf a dataframe of population level allele frequencies (createPlanPlaf object)
+#' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
+#'
+#' @examples
+#' harmonize(plaf,q)
+#Function for harmonizing the plaf so that it has the same number of sites as
+#other dEploid input
+harmonizePl<-function(Plaf,q) {
+  plaf<-dplyr::full_join(Plaf,q)%>% dplyr::arrange(POS)# join plaf and POS from alt ref keeping all rows
+
+  plaf<-dplyr::mutate(plaf, CHROM=base::ifelse(is.na(CHROM), "CHRM", "CHRM"))# convert all NAs in the CHROM column to CHRM
+  plaf[base::is.na(plaf)]<-1e-6# convert all remaing NAs in the table to 1s
+  CVPl<-plaf # save final plaf table to enviroment
+
+  return(CVPl)# return results of function
+}
+
+
+#' @title
+#' A helper function to runDeploid()that harmonizes the AltRef
+#'
+#' @description
+#' This function takes an AltRef (modified createAltRef object),
+#' and a vector p of sites from a plaf/pan (createPlafPan object)
+#' and matches or "harmonizes" the number of sites between both dataframes
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param AltRef a dataframe of reference and alternate allele counts (modified createAltRef object)
+#' @param p vector of sites from a plaf/pan dataframe (createPlafPan object)
+#'
+#' @examples
+#' harmonize(AltRef,p)
+
+
+#Function for harmonizing the AltRef so that it has the same number of sites as
+#other dEploid input
+harmonizeAR<-function(AltRef, p){
+
+  readCount <- AltRef$AltCount[1] + AltRef$RefCount[1]# create object representing total count
+
+  AR<-dplyr::full_join(AltRef, p, by="POS")%>% dplyr::arrange(POS)# join alt ref tabel and POS from panel keeping all rows
+  AR<-dplyr::mutate(AR, CHROM= base::ifelse(is.na(CHROM), "CHRM", "CHRM"))# convert all NAs in the CHROM column to CHRM
+  AR$AltCount%>%tidyr::replace_na(0)->AR$AltCount # convert all NAs in ALT column to 0s
+  AR$RefCount%>%tidyr::replace_na(readCount)->AR$RefCount # convert all NAs in REF column to 100s
+
+  return(AR) # return results of function
+}
+
+#' @title
+#' Get variants from SNP data
+#'
+#' @description
 #' This function takes three vectors Position, Allele and Type from the SNPs
 #' and returns a vector of variants (e.g. "73G", "73+G", 73-" )
 
@@ -14,8 +148,8 @@ suppressPackageStartupMessages(library(tibble))
 #' and "Deletion" (charachter strings)
 #'
 #' @examples
-#' # Snp2variant("73", "G", "Substitution")
-#' # Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
+#' Snp2variant("73", "G", "Substitution")
+#' Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
 #'
 Snp2variant<-function(Pos, Allele, Type){
   tib<-dplyr::tibble(Pos=as.integer(Pos), Allele=Allele, Type=Type)
@@ -29,30 +163,32 @@ Snp2variant<-function(Pos, Allele, Type){
 }
 
 
-#' Makes an "empop" dataframe
+#' @title
+#' Write inforatuon on sample ID and variants in the emp file format
 #'
-#'
+#' @description
 #' This function takes two vectors SampleID and Variant
-#' and returns a tibble in the empop format.
+#' and returns a tibble in the emp file format.
 #' Each row in the tibble will correspond to 1 individual (SampleID)
 #' and their empop string (tab separated) will be the value in the second column
 #'
 #' @importFrom magrittr %>%
+#'
 #' @param SampleID A vector of sample IDs (character strings)
 #' @param Variant A vector of variants (character strings). See Snp2variant for description
 #'
 #' @examples
-#'
-#' # write_mbop("NA12871", c("73G", "95-"))
-#' # write_mbop(c("NA12871", "NA12871", "NA12872"), c("73G", "95-", "73G"))
-#'
+#' write_mbop("NA12871", c("73G", "95-"))
+#' write_mbop(c("NA12871", "NA12871", "NA12872"), c("73G", "95-", "73G"))
 write_mbop<-function(SampleID, Variant){
   tib<-tibble::tibble(SampleID=SampleID, Variant=Variant)
   Empop<-tib%>%dplyr::group_by(SampleID)%>%dplyr::summarise(empopstring = paste(unique(Variant),collapse = "\t"))
 }
 
-#' reads empop
-
+#' @title
+#' Get variants from an EMPOP file
+#'
+#' @description
 #' This function takes an empop file containing at least four (mandatory) columns
 #' (refer to https://empop.online/downloads for the emp file format)
 #' and returns a tibble with two columns - SampleID and Variant
@@ -68,18 +204,8 @@ write_mbop<-function(SampleID, Variant){
 #' #   Empop2variant("EMPOP.emp")
 #' #   Empop2variant("EMPOP.emp", s = 3)
 Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
-  # A major bug was found with this approach causing many SNPs to be dropped.
-  # specifically, those whose column index exceeded that of the 1st individual
-  #EMPOP<- readr::read_delim(empopFile, delim = "\t", skip = s, col_names = FALSE, guess_max=guess_max) %>% # read the empop files in
-   # dplyr::rename(SampleID = X1, Haplogroup = X2, Frequencies = X3)
-#  LongF<- tidyr::gather(EMPOP,"Key","Variant",-SampleID, -Haplogroup, -Frequencies, factor_key = FALSE)
-#  if(ncol(LongF)==3) {
- #   dplyr::mutate(LongF,Variant = NA) %>% dplyr::select(-Haplogroup, -Frequencies)-> LongF
-  #}
-  #LongF%>%dplyr::select(SampleID, Variant) -> LongF
 
-  # ; is not part of the empop file format and it is disallowed
-  e <- readr::read_delim(empopFile, skip=s, delim=";", guess_max=guess_max, col_names=FALSE, col_types=readr::cols())
+  e <- readr::read_delim(empopFile, skip=s, delim="\\0", guess_max=guess_max, col_names=FALSE, col_types=readr::cols())
   colnames(e)[1] <- "Variant"
   e <- tidyr::separate(e, Variant, "SampleID", extra='drop', remove=F, sep="\t") # get the sampleiD (1st column, tab delim)
   e <- tidyr::separate_rows(e, Variant, sep="\t") %>%  # and separate out the rest of the tabs (long-format)
@@ -96,11 +222,13 @@ Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
   return(e)
 }
 
-#' Converts 2 snp...
+#' @title
+#' Get SNPs from variant data
 #'
+#' @description
 #' This function takes a vector of variants (e.g. "73G", "73+G", 73-" ) and returns a tibble
-#' with 3 columns : Pos, Allele and Type that contain information on the genomic position,
-#' nucleotide base and type of mutation (i.e. "Substitution", "Insertion" and "Deletion") respectively for each variant
+#' with three columns : Pos, Allele and Type that contain information on the genomic position,
+#' nucleotide base and type of mutation (i.e. "Substitution", "Insertion" and "Deletion")resecptively for each variant
 #'
 #' @importFrom magrittr %>%
 #'
@@ -135,12 +263,12 @@ Variant2snp<-function(Variant){
     dplyr::select(-(neg), -(Ins), -(Len))                                # drop all unnecessary columns
 }
 
-#' Makes a giant empop file...
+#' @title
+#' Join mutliple EMPOP files into one large EMPOP file using a look-up table
 #'
+#' @description
 #' This function takes a lookup-table file and a path to EMPOP files
 #' and returns a bigger EMPOP file (i.e. all EMPOP files in the path bound together)
-#' Note: This function is not for general use. It was constructed specifically
-#' to construct haplotypes from HmtDB (https://www.hmtdb.uniba.it/) using custom up-stream processing.
 #'
 #' @importFrom magrittr %>%
 #'
@@ -202,3 +330,141 @@ Hmtdb2Empop<-function(LUT,Pa) {
  utils::write.table(Empop, "Empop.tsv", quote = FALSE, sep = "\t", col.names = FALSE, row.names = FALSE, na="") # write tab-delimited file to file
 #without column or row names
 }
+
+#' @title
+#' Wrapper function for dEploid
+#'
+#' @description
+#' This function takes information on alternate and reference allele counts,
+#' number of individuals and the recombination rate and runs
+#' the dEploid function on them. It retuns the dEploid output
+#' with includes estimated haplotypes, mixture proprotions and other phasing statistics.
+#' Additionaly this function also returns a list of nucleotide positions that violate the infinte sites model.
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param AR Table of alternate and reference allele counts (Empop2AltRef object)
+#' @param long Table with information on sample ID, position, allele and type of mutation
+#' @param NumMCMC A numeric argument that tells the function the number of MCMC samples (default value 800)
+#' @param exportPostProb Save the posterior probabilities of the final iteration of all individuals
+#' @param recomb numeric argument that gives the function the constant recombination probability (default value of 0.0)
+#' @param k A numeric argument that tells the function the number of individuals in the mixture (default value 5, maximum of 5)
+#' @examples
+#  rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
+
+#Wrapper function for dEploid
+rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5){
+
+  EmpopLong<-dplyr::ungroup(long) # ungroup long dataframe
+
+  #identifying positions with infinite sites violations
+  AR1<-base::subset(AR, IsRef=="N") #remove reference alleles
+  V<-dplyr::bind_rows(AR1, EmpopLong)#bind AR to long table by appending rows
+  V%>%dplyr::group_by(POS)%>% # group by position/site
+    dplyr::mutate(UniqueAltAll=length(unique(Nuc)))-> V # calculate the number of unique alleles for each site
+  V%>%dplyr::filter(UniqueAltAll >=2)%>%dplyr::select(POS)-> ISV # select only those sites that are represented by one allele
+
+  V%>%dplyr::filter(UniqueAltAll <=1)-> V2 #select the remaining sites to make AltRef and long dataframes
+
+
+  #convert remaining sites into the dEploid AltRef format
+  V3<-dplyr::distinct(V2,unique(POS), .keep_all=TRUE)
+  V3[-c(1,5,6)] %>% dplyr::mutate(CHROM = "CHRM")->AR2  #parse out updated AltRef table and add CHROM column
+  #AR2<-as_tibble(AR2)%>%select(-POS)
+  AR2<-stats::na.omit(AR2)#keep only sites that are in the mixture
+  AR3<-AR2[,c(5, 4, 1, 2, 3)]%>% dplyr::rename(POS = "unique(POS)") #reorder columns and sort Pos column
+  #create columns for Alt and Ref counts
+  AR4<-AR3%>%dplyr::mutate(RefCount =dplyr::if_else(IsRef=="Y", Count, 0), AltCount =dplyr::if_else(IsRef == "N", Count, 0))
+  AltRef <- dplyr::select(AR4, -c(Nuc,Count, IsRef)) # remove unnecessary columns
+
+  #convert remaining sites into long format
+  dplyr::select(V2, -c(Count, IsRef, UniqueAltAll))%>% dplyr::select(Sample.name, POS, Nuc)%>%dplyr::filter(Sample.name!= is.na(Sample.name)) -> EmpopLong #parse out updated long table
+
+  #Create panel and plaf dataframes
+  Plafpanel<-createPlafPan(EmpopLong)# run function that creates panel and plaf tables without candidate haps
+  Pan<-Plafpanel[[2]] # split Pan from Plafpanel
+  Plaf<-Plafpanel[[1]] # split Plaf from Plafpanel
+
+
+  # Panel<-rename(Panel, CHROM="CHROM.x")
+  # Panel<-select(Panel, -CHROM.y, -RefCount, -AltCount, -AltAllele)
+
+  #Create vectors of positions for the harmonize functions
+  p<-dplyr::tibble(POS=as.numeric(Pan$POS))# create a table to accomodate just the POS column from panel
+  q<-dplyr::tibble(POS=as.numeric(AltRef$POS))# create a table to accomodate just t he POS column from AltRef   #
+
+  #harmonize Panel, Plaf and AltRef so that they all have same number of sites
+  Pan<-harmonizePa(Pan, q) # harmonize panel
+  Plaf<-harmonizePl(Plaf, q) # harmonize plaf
+  AltRef1<-harmonizeAR(AltRef, p) # harmonize AltRef
+
+  #write dataframes to file
+  readr::write_tsv(Pan,"Pan.tsv")#export data.frame as panelfile.tsv
+  readr::write_tsv(Plaf, "Plaf.tsv") #export data.frame as panelfile.tsv
+  readr::write_tsv(AltRef1[,c("CHROM", "POS", "AltCount")],"Alt.tsv" )#write position and count of alternate alleles to tsv
+  readr::write_tsv(AltRef1[,c("CHROM", "POS", "RefCount")], "Ref.tsv")#write postion and count of reference alleles to tsv
+
+  #assigning objects to dEploid input files
+  Pan<-"Pan.tsv" #assinging the panel file
+  Plaf<-"Plaf.tsv" #assigning the plaf file
+  Alt<-"Alt.tsv" #assigning the alt file
+  Ref<-"Ref.tsv" # assinging the ref file
+
+
+
+  #core dEploid function
+  Com<-(base::paste("-ref", Ref, "-alt", Alt, "-plaf", Plaf, "-panel", Pan, "-nSample", NumMCMC,
+                    ifelse(exportPostProb==TRUE, "-exportPostProb", ""), "-recomb", recomb, "-k", k, sep = " "))
+  dEploid.run<-dEploid(Com)
+
+
+  base::colnames(dEploid.run$Haps)<-AltRef1$POS # assigne column names to the dEploid matrix to associate sites to alleles
+
+  return(base::append(dEploid.run, unique(ISV))) #return modified dEploid object with a list of positions that violate infinite sites model
+
+}
+
+
+
+
+#' @title
+#' Get proportion of mixtures from dEploid output
+#'
+#' @description
+#' This function takes the output of dEploid and returns mixture proportions for major and minor contributors
+#'
+#'
+#' @param dEploid.run dEploid object
+#'
+#'@examples
+#'getMixProps(dEploid.run)
+#'
+
+getMixProps<-function(dEploid.run){
+  MixProps<-utils::tail(dEploid.run$Proportions, n=1)%>% base::sort(decreasing = TRUE)
+}
+
+#' @title
+#' Get estimated haplotypes based on the dEploid output
+#'
+#' @description
+#' This function takes the output of dEploid and an Altref file and returns estimated haplotypes for the major
+#' and minor contributors and their genomic positions
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param dEploid.run dEploid output
+#' @param MixProps Mixture proportions (getMixProps object)
+#' @param AR Table of alternate and reference allele counts (tab-delimited plain text file, Empop2AltRef object)
+#'
+#' @examples getdEploidHaps(dEploid.run, MixProps, AR)
+getdEploidHaps <-function(dEploid.run, AR) {
+  Haps<-dplyr::as_tibble(dEploid.run$Haps)%>% tibble::rownames_to_column("Samples") # convert Haps from matrix to tibble
+  tidyr::gather(Haps,"Key", "Value", -Samples)-> Long # go from wide to long
+
+  Long[order(Long$Samples), c(1,2,3)]->HapsTab # reorder columns
+  HapsTab1<- dplyr::filter(HapsTab, Value!=0)%>% dplyr::rename("POS"=Key) # remove all rows that have a reference allele (i.e. 0)
+  HapsTab1$POS<-as.numeric(HapsTab1$POS) # convert the the vector POS to numeric to be able to join
+  HapsTab2<-dplyr::left_join(HapsTab1, AR, by = "POS")%>% dplyr::select(Samples, POS, Nuc) # join dEploid haps with AltRef data to
+}
+

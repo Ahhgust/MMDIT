@@ -2,10 +2,7 @@
 % Please edit documentation in R/utpalFunctions.R
 \name{Empop2variant}
 \alias{Empop2variant}
-\title{reads empop
-This function takes an empop file containing at least four (mandatory) columns
-(refer to https://empop.online/downloads for the emp file format)
-and returns a tibble with two columns - SampleID and Variant}
+\title{Get variants from an EMPOP file}
 \usage{
 Empop2variant(empopFile, s = 1, ncol2skip = 3, guess_max = 100)
 }
@@ -20,7 +17,6 @@ Empop2variant(empopFile, s = 1, ncol2skip = 3, guess_max = 100)
 If no value is provided, the first line is ommited by default}
 }
 \description{
-reads empop
 This function takes an empop file containing at least four (mandatory) columns
 (refer to https://empop.online/downloads for the emp file format)
 and returns a tibble with two columns - SampleID and Variant
