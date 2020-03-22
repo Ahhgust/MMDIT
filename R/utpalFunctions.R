@@ -13,12 +13,12 @@ suppressPackageStartupMessages(library(tibble))
 #' This function takes a long dataframe (containing differences in coding compared to the rCRS,
 #' in a select set of individuals) and returns panel and plaf dataframes
 #'
-#' @param long dataframe with information on sample ID, position and allele for a set of individuals
+#' @param EmpopLong dataframe with information on sample ID, position and allele for a set of individuals
 #'
 #' @importFrom magrittr %>%
 #' @export
 #' @examples
-#' createPlafPan(long)
+#' # createPlafPan(EmpopLong)
 createPlafPan<-function(EmpopLong) {
   Wide<-tidyr::spread(EmpopLong, Sample.name, Nuc)#go from long format to wide again
   Wide$POS<-as.numeric(Wide$POS)#coerce position to number to be able to sort
@@ -62,7 +62,7 @@ createPlafPan<-function(EmpopLong) {
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
 #'
 #' @examples
-#' harmonize(plaf,q)
+#' # harmonize(plaf,q)
 
 #Function for harmonizing the panel so that it has the same number of sites as
 #other dEploid input
@@ -86,11 +86,11 @@ harmonizePa<-function(panel,q) {
 #'
 #' @importFrom magrittr %>%
 #'
-#' @param plaf a dataframe of population level allele frequencies (createPlanPlaf object)
+#' @param Plaf a dataframe of population level allele frequencies (createPlanPlaf object)
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
 #' @export
 #' @examples
-#' harmonize(plaf,q)
+#' # harmonize(plaf,q)
 #Function for harmonizing the plaf so that it has the same number of sites as
 #other dEploid input
 harmonizePl<-function(Plaf,q) {
@@ -118,7 +118,7 @@ harmonizePl<-function(Plaf,q) {
 #' @param p vector of sites from a plaf/pan dataframe (createPlafPan object)
 #'
 #' @examples
-#' harmonize(AltRef,p)
+#' # harmonize(AltRef,p)
 #' @export
 #Function for harmonizing the AltRef so that it has the same number of sites as
 #other dEploid input
@@ -352,7 +352,7 @@ Hmtdb2Empop<-function(LUT,Pa) {
 #' @param recomb numeric argument that gives the function the constant recombination probability (default value of 0.0)
 #' @param k A numeric argument that tells the function the number of individuals in the mixture (default value 5, maximum of 5)
 #' @examples
-#  rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
+#  # rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
 #' @export
 rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5){
 
@@ -439,7 +439,7 @@ rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5
 #' @param dEploid.run dEploid object
 #'
 #'@examples
-#'getMixProps(dEploid.run)
+#' # getMixProps(dEploid.run)
 #' @export
 getMixProps<-function(dEploid.run){
   MixProps<-utils::tail(dEploid.run$Proportions, n=1)%>% base::sort(decreasing = TRUE)
@@ -455,7 +455,6 @@ getMixProps<-function(dEploid.run){
 #' @importFrom magrittr %>%
 #'
 #' @param dEploid.run dEploid output
-#' @param MixProps Mixture proportions (getMixProps object)
 #' @param AR Table of alternate and reference allele counts (tab-delimited plain text file, Empop2AltRef object)
 #' @export
 getdEploidHaps <-function(dEploid.run, AR) {

@@ -320,8 +320,8 @@ makeHaplotypeTable <- function(db, sampleid, stopCoord, seq, tableName="haplotyp
 #' The haplotypes table converts the difference encodings into strings (after applying the mask)
 #'
 #' @param db (database handle)
-#' @param stop (stop coordinate of amplicon)
-#' @param sequence (the DNA sequence of this individual for this amplicon)
+#' @param stopCoord (stop coordinate of amplicon)
+#' @param seq (the DNA sequence of this individual for this amplicon)
 #' @param tableName (the name of the table to be made)
 makeSampleTable <- function(db, stopCoord, seq, tableName="sampleamps") {
 
@@ -729,6 +729,8 @@ getAllDistances <- function(amps, seqs, stops, ignoreIndels=FALSE) {
 #'
 #' This takes in the database handle
 #' and returns a the unique populations
+#'
+#' @param db database handle
 #'
 #' @export
 getPops <- function(db) {
