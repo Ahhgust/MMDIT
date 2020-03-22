@@ -192,6 +192,8 @@ write_mbop<-function(SampleID, Variant){
 #' This function takes an empop file containing at least four (mandatory) columns
 #' (refer to https://empop.online/downloads for the emp file format)
 #' and returns a tibble with two columns - SampleID and Variant
+#' All individuals in the empop file must be single-source, with *no* heteroplasmies
+#' We recommend taking the major allele in the case of heteroplasmy.
 #'
 #' @importFrom magrittr %>%
 #' @param empopFile An EMPOP file (tab seperated)
@@ -360,6 +362,7 @@ rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5
   #identifying positions with infinite sites violations
   AR1<-base::subset(AR, IsRef=="N") #remove reference alleles
   V<-dplyr::bind_rows(AR1, EmpopLong)#bind AR to long table by appending rows
+
   V%>%dplyr::group_by(POS)%>% # group by position/site
     dplyr::mutate(UniqueAltAll=length(unique(Nuc)))-> V # calculate the number of unique alleles for each site
   V%>%dplyr::filter(UniqueAltAll >=2)%>%dplyr::select(POS)-> ISV # select only those sites that are represented by one allele
@@ -439,7 +442,6 @@ rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5
 #'@examples
 #'getMixProps(dEploid.run)
 #'
-
 getMixProps<-function(dEploid.run){
   MixProps<-utils::tail(dEploid.run$Proportions, n=1)%>% base::sort(decreasing = TRUE)
 }
@@ -457,7 +459,6 @@ getMixProps<-function(dEploid.run){
 #' @param MixProps Mixture proportions (getMixProps object)
 #' @param AR Table of alternate and reference allele counts (tab-delimited plain text file, Empop2AltRef object)
 #'
-#' @examples getdEploidHaps(dEploid.run, MixProps, AR)
 getdEploidHaps <-function(dEploid.run, AR) {
   Haps<-dplyr::as_tibble(dEploid.run$Haps)%>% tibble::rownames_to_column("Samples") # convert Haps from matrix to tibble
   tidyr::gather(Haps,"Key", "Value", -Samples)-> Long # go from wide to long
