@@ -69,6 +69,7 @@ dbSendQueryAndClear <- function(db, query) {
 #' otherwise, it will clobber what was there (use overwrite=TRUE with caution!!)
 #'
 #' @return the handle to the database (throughout all other documentation, this is db)
+#' @export
 #' @examples
 #' # Make a new MMDIT database...
 #'
@@ -158,6 +159,7 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
 #' @param path a directory (e.g., data)
 #' @param dbFilename (e.g., mmdit.sqlite3)
 #'
+#' @export
 loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
   dbFile <- paste(path, dbFilename, sep="/")
 
@@ -248,6 +250,7 @@ loadReferenceGenome <- function(db, fastaFile) {
 #' @param seq (the DNA sequence of this individual for this amplicon)
 #' @param tableName (the name of the table to be made; default="haplotypes")
 #' @param vtableName (the name of the virtual spellfix table to be made; default="sequences")
+#'
 makeHaplotypeTable <- function(db, sampleid, stopCoord, seq, tableName="haplotypes", vtableName="sequences") {
 
 # initialize table of edit distances
@@ -397,7 +400,7 @@ loadAmpData <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
 #'
 #' @examples
 #' # amps <- getRefAmpSeqs(db, kit="PrecisionID")
-#'
+#' @export
 getRefAmpSeqs <- function(db, kit=default_kit) {
   #TODO: Take in start/stop coordinates as well as a kit.
   loc <- DBI::dbGetQuery(db,
@@ -483,6 +486,7 @@ initDB <- function() {
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default TRUE)
 #' @param kit nameof amplicon sequencing kit...
+#' @export
 getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE, kit=default_kit) {
 
 # optionally we want to filter out indels...
@@ -517,6 +521,8 @@ getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE, kit=default_kit) {
 #' mtgenome length (16569 unless some real funny-business is happening)
 #'
 #' @param db the database handle
+#'
+#' @export
 getMtgenomeLength <- function(db) {
   DBI::dbGetQuery(db,
                   "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
@@ -530,6 +536,7 @@ getMtgenomeLength <- function(db) {
 #' and coordinates from a circular alignment
 #'
 #' @param db the database handle
+#' @export
 getMtgenomeSequence <- function(db) {
   stringr::str_dup(
     DBI::dbGetQuery(db,
@@ -546,6 +553,7 @@ getMtgenomeSequence <- function(db) {
 #' @param ignoreIndels strips out indel events (default TRUE)
 #' @param kit the amplicon kit
 #' @param blk blacklist of sites to filter out!
+#' @export
 getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
 
   mtgenomeLen <- DBI::dbGetQuery(db,
@@ -717,6 +725,12 @@ getAllDistances <- function(amps, seqs, stops, ignoreIndels=FALSE) {
   return(dplyr::arrange(cmbnd, stop, dist))
 }
 
+#' gets population labels
+#'
+#' This takes in the database handle
+#' and returns a the unique populations
+#'
+#' @export
 getPops <- function(db) {
   DBI::dbGetQuery(db, "SELECT DISTINCT(pop) FROM populations")
 }

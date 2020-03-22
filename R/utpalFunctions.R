@@ -16,7 +16,7 @@ suppressPackageStartupMessages(library(tibble))
 #' @param long dataframe with information on sample ID, position and allele for a set of individuals
 #'
 #' @importFrom magrittr %>%
-#'
+#' @export
 #' @examples
 #' createPlafPan(long)
 createPlafPan<-function(EmpopLong) {
@@ -57,7 +57,7 @@ createPlafPan<-function(EmpopLong) {
 #' and matches or "harmonizes" the number of sites between both dataframes
 #'
 #' @importFrom magrittr %>%
-#'
+#' @export
 #' @param panel a dataframe representing a reference panel for a set of individuals (createPlafPan object)
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
 #'
@@ -88,7 +88,7 @@ harmonizePa<-function(panel,q) {
 #'
 #' @param plaf a dataframe of population level allele frequencies (createPlanPlaf object)
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
-#'
+#' @export
 #' @examples
 #' harmonize(plaf,q)
 #Function for harmonizing the plaf so that it has the same number of sites as
@@ -119,8 +119,7 @@ harmonizePl<-function(Plaf,q) {
 #'
 #' @examples
 #' harmonize(AltRef,p)
-
-
+#' @export
 #Function for harmonizing the AltRef so that it has the same number of sites as
 #other dEploid input
 harmonizeAR<-function(AltRef, p){
@@ -150,7 +149,7 @@ harmonizeAR<-function(AltRef, p){
 #' @examples
 #' Snp2variant("73", "G", "Substitution")
 #' Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
-#'
+#' @export
 Snp2variant<-function(Pos, Allele, Type){
   tib<-dplyr::tibble(Pos=as.integer(Pos), Allele=Allele, Type=Type)
   Variant<-dplyr::case_when( # create and keep only one vector - Variant
@@ -180,6 +179,7 @@ Snp2variant<-function(Pos, Allele, Type){
 #' @examples
 #' write_mbop("NA12871", c("73G", "95-"))
 #' write_mbop(c("NA12871", "NA12871", "NA12872"), c("73G", "95-", "73G"))
+#' @export
 write_mbop<-function(SampleID, Variant){
   tib<-tibble::tibble(SampleID=SampleID, Variant=Variant)
   Empop<-tib%>%dplyr::group_by(SampleID)%>%dplyr::summarise(empopstring = paste(unique(Variant),collapse = "\t"))
@@ -194,7 +194,7 @@ write_mbop<-function(SampleID, Variant){
 #' and returns a tibble with two columns - SampleID and Variant
 #' All individuals in the empop file must be single-source, with *no* heteroplasmies
 #' We recommend taking the major allele in the case of heteroplasmy.
-#'
+#' @export
 #' @importFrom magrittr %>%
 #' @param empopFile An EMPOP file (tab seperated)
 #' @param s a numeric argument that tells the function how many rows of data to skip while reading in EMPOP file
@@ -239,7 +239,7 @@ Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
 #' @examples
 #' # Variant2snp("73G")
 #' # Variant2snp(c("73G", "95-", "146+C"))
-#'
+#' @export
 Variant2snp<-function(Variant){
   df<-(stringr::str_replace(Variant,"\\+", "\\."))# replace all occurences of "+" with a "."
   df1<-stringr::str_replace_all(df, "^[^0-9]","")%>% tibble::enframe()# replace any non numeric element at the start of the string with an empty string and make the result into a dataframe
@@ -273,7 +273,7 @@ Variant2snp<-function(Variant){
 #' and returns a bigger EMPOP file (i.e. all EMPOP files in the path bound together)
 #'
 #' @importFrom magrittr %>%
-#'
+#' @export
 #'
 #' @param LUT A lookup-table file (tab seperated)
 #' @param Pa The path to folder where EMPOP files are stored (charachter string)
@@ -353,8 +353,7 @@ Hmtdb2Empop<-function(LUT,Pa) {
 #' @param k A numeric argument that tells the function the number of individuals in the mixture (default value 5, maximum of 5)
 #' @examples
 #  rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
-
-#Wrapper function for dEploid
+#' @export
 rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5){
 
   EmpopLong<-dplyr::ungroup(long) # ungroup long dataframe
@@ -441,7 +440,7 @@ rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5
 #'
 #'@examples
 #'getMixProps(dEploid.run)
-#'
+#' @export
 getMixProps<-function(dEploid.run){
   MixProps<-utils::tail(dEploid.run$Proportions, n=1)%>% base::sort(decreasing = TRUE)
 }
@@ -458,7 +457,7 @@ getMixProps<-function(dEploid.run){
 #' @param dEploid.run dEploid output
 #' @param MixProps Mixture proportions (getMixProps object)
 #' @param AR Table of alternate and reference allele counts (tab-delimited plain text file, Empop2AltRef object)
-#'
+#' @export
 getdEploidHaps <-function(dEploid.run, AR) {
   Haps<-dplyr::as_tibble(dEploid.run$Haps)%>% tibble::rownames_to_column("Samples") # convert Haps from matrix to tibble
   tidyr::gather(Haps,"Key", "Value", -Samples)-> Long # go from wide to long
