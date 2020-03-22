@@ -17,5 +17,4 @@ nucleotide base and type of mutation (i.e. "Substitution", "Insertion" and "Dele
 \examples{
 # Variant2snp("73G")
 # Variant2snp(c("73G", "95-", "146+C"))
-
 }

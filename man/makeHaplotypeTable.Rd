@@ -18,13 +18,13 @@ makeHaplotypeTable(
 
 \item{sampleid}{(individual sample IDs from MMDIT)}
 
+\item{stopCoord}{(stop coordinate of amplicon)}
+
+\item{seq}{(the DNA sequence of this individual for this amplicon)}
+
 \item{tableName}{(the name of the table to be made; default="haplotypes")}
 
 \item{vtableName}{(the name of the virtual spellfix table to be made; default="sequences")}
-
-\item{stop}{(stop coordinate of amplicon)}
-
-\item{sequence}{(the DNA sequence of this individual for this amplicon)}
 }
 \description{
 this creates a temporary table called haplotypes

@@ -21,5 +21,4 @@ and returns a vector of variants (e.g. "73G", "73+G", 73-" )
 \examples{
 Snp2variant("73", "G", "Substitution")
 Snp2variant(c("73", "95", "146"), c("G", "", "C"), c("Substitution", "Deletion", "Insertion"))
-
 }

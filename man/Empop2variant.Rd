@@ -20,6 +20,8 @@ If no value is provided, the first line is ommited by default}
 This function takes an empop file containing at least four (mandatory) columns
 (refer to https://empop.online/downloads for the emp file format)
 and returns a tibble with two columns - SampleID and Variant
+All individuals in the empop file must be single-source, with *no* heteroplasmies
+We recommend taking the major allele in the case of heteroplasmy.
 }
 \examples{
 #   Empop2variant("EMPOP.emp")
