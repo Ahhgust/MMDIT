@@ -4,10 +4,12 @@
 \alias{getMtgenomeSequence}
 \title{Mito-genome (reference) sequence}
 \usage{
-getMtgenomeSequence(db)
+getMtgenomeSequence(db, double = TRUE)
 }
 \arguments{
 \item{db}{the database handle}
+
+\item{double}{whether or not the sequence should be self-concatenated (circularized)}
 }
 \description{
 Returns the self-concatenated mitochondrial reference genome

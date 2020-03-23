@@ -7,7 +7,7 @@
 
 # database dependencies
 
-library(devtools)
+#library(devtools)
 
 # Note to self
 # Install bit, bit64 and blob FIRST!
@@ -16,21 +16,21 @@ library(devtools)
 #devtools::install_github("Ahhgust/Haplotypical", ref="master", upgrade=TRUE)
 
 
-library(Rcpp)
-library(DBI)
-library(RSQLite)
-library(stringr)
-library(Haplotypical)
-library(stringdist)
+#library(Rcpp)
+#library(DBI)
+#library(RSQLite)
+#library(stringr)
+#library(Haplotypical)
+#library(stringdist)
 
 # for reading fasta files (reference genome)
-library(seqinr)
+#library(seqinr)
 
 # quality of life dependencies
-suppressPackageStartupMessages( library(tibble) )
-suppressPackageStartupMessages( library(readr) )
-suppressPackageStartupMessages( library(dplyr) )
-suppressPackageStartupMessages( library(magrittr) )
+#suppressPackageStartupMessages( library(tibble) )
+#suppressPackageStartupMessages( library(readr) )
+#suppressPackageStartupMessages( library(dplyr) )
+#suppressPackageStartupMessages( library(magrittr) )
 
 
 
