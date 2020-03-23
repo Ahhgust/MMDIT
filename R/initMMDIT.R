@@ -16,23 +16,25 @@
 #devtools::install_github("Ahhgust/Haplotypical", ref="master", upgrade=TRUE)
 
 
-#library(Rcpp)
-#library(DBI)
-#library(RSQLite)
-#library(stringr)
-#library(Haplotypical)
-#library(stringdist)
+# laziness. For when I source this script... nice to load libs
+loadLibs <- function() {
+library(Rcpp)
+library(DBI)
+library(RSQLite)
+library(stringr)
+library(Haplotypical)
+library(stringdist)
 
 # for reading fasta files (reference genome)
-#library(seqinr)
+library(seqinr)
 
 # quality of life dependencies
-#suppressPackageStartupMessages( library(tibble) )
-#suppressPackageStartupMessages( library(readr) )
-#suppressPackageStartupMessages( library(dplyr) )
-#suppressPackageStartupMessages( library(magrittr) )
+suppressPackageStartupMessages( library(tibble) )
+suppressPackageStartupMessages( library(readr) )
+suppressPackageStartupMessages( library(dplyr) )
+suppressPackageStartupMessages( library(magrittr) )
 
-
+}
 
 
 
@@ -334,19 +336,26 @@ initDB <- function() {
 #' @param db the database handle
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default TRUE)
+#' @param getPopulation gets the population label along with the sequence differences
 #' @export
-getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE) {
+getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE, getPopulation=FALSE) {
 
   # optionally we want to filter out indels...
   indelString <- ""
   if (ignoreIndels) {
     indelString <- " AND event = 'X'"
   }
+
+  popString <- ""
+  if (getPopulation) {
+    popString <- ", populations.pop "
+  }
+
   genomeLength <- DBI::dbGetQuery(db, "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 
   diffs <- DBI::dbGetQuery(db,
                            paste0(
-                             "SELECT populations.sampleid, position, event, basecall ",
+                             "SELECT populations.sampleid, position, event, basecall ", popString ,
                              "FROM   full_mito_diffseqs, populations ",
                              "WHERE  populations.sampleid  = full_mito_diffseqs.sampleid ",
                              "AND (",
@@ -446,7 +455,7 @@ getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
                                  "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 
   lookupcodes <- getSeqdiffCodes() # translates X,I,D into 1,2,3
-  diffs <- getSeqdiffs(db, pop, ignoreIndels)
+  diffs <- getSeqdiffs(db, pop, ignoreIndels, getPopulation=TRUE)
   # making this into a factor retains individuals (regardless of filtering)
   diffs$sampleid <- factor(diffs$sampleid)
 
@@ -459,7 +468,8 @@ getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
   # for each individual / amplicon (with a difference to the rCRS)
   #
   dplyr::group_by(diffs,
-                  sampleid
+                  sampleid,
+                  pop
   )  %>%
     dplyr::mutate( # deal with circular coordinates, compute the coordinate of the SNP
       # within the amplicon
