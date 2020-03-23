@@ -4,7 +4,7 @@
 \alias{getSeqdiffs}
 \title{get all seqdiffs for some population}
 \usage{
-getSeqdiffs(db, pop = "\%", ignoreIndels = FALSE, kit = default_kit)
+getSeqdiffs(db, pop = "\%", ignoreIndels = FALSE)
 }
 \arguments{
 \item{db}{the database handle}
@@ -12,8 +12,6 @@ getSeqdiffs(db, pop = "\%", ignoreIndels = FALSE, kit = default_kit)
 \item{pop}{the population requested (defaults to all). vectorized populations okay}
 
 \item{ignoreIndels}{strips out indel events (default TRUE)}
-
-\item{kit}{nameof amplicon sequencing kit...}
 }
 \description{
 get all seqdiffs for some population

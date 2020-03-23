@@ -2,7 +2,7 @@
 % Please edit documentation in R/initMMDIT.R
 \name{loadMMDIT}
 \alias{loadMMDIT}
-\title{Loads the database...}
+\title{Loads MMDIT}
 \usage{
 loadMMDIT(path = dataDir, dbFilename = dbName)
 }
