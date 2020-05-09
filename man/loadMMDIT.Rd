@@ -13,5 +13,9 @@ loadMMDIT(path = dataDir, dbFilename = dbName)
 }
 \description{
 This *loads* the MMDIT database
-The haplotypes table will be empty (but fillable)
+path can either be the full path of the sqlite3 file
+ (dbFilename must be "")
+OR
+path can be the directory
+and the database name can be supplied separately
 }

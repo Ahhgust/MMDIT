@@ -32,6 +32,7 @@ library(seqinr)
 suppressPackageStartupMessages( library(tibble) )
 suppressPackageStartupMessages( library(readr) )
 suppressPackageStartupMessages( library(dplyr) )
+suppressPackageStartupMessages( library(tidyr) )
 suppressPackageStartupMessages( library(magrittr) )
 
 }
@@ -157,19 +158,29 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
 #' Loads MMDIT
 #'
 #' This *loads* the MMDIT database
-#' The haplotypes table will be empty (but fillable)
+#' path can either be the full path of the sqlite3 file
+#'  (dbFilename must be "")
+#' OR
+#' path can be the directory
+#' and the database name can be supplied separately
+#'
 #' @param path a directory (e.g., data)
 #' @param dbFilename (e.g., mmdit.sqlite3)
 #'
 #' @export
 loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
-  dbFile <- paste(path, dbFilename, sep="/")
+  if (dbFilename != "") {
+    dbFile <- paste(path, dbFilename, sep="/")
+  } else {
+    dbFile <- path
+  }
 
   if (file.exists(dbFile)) {
     db <- DBI::dbConnect( RSQLite::SQLite(), dbFile, loadable.extensions = TRUE)
     RSQLite::initExtension(db)
     return(db)
   }
+  stop(paste(dbFile, "does not exist...", path, dbFilename))
   return(NULL)
 }
 
@@ -311,7 +322,7 @@ getRefAmpSeqs <- function(db, kit=default_kit) {
 
 
 getSeqdiffCodes <- function() {
-  c(X=1, I=2,D=3)
+  c(X=0, I=1,D=2)
 }
 
 
@@ -377,20 +388,26 @@ getSeqdiffs <- function(db, pop="%", ignoreIndels=FALSE, getPopulation=FALSE) {
 #' @param db the database handle
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default TRUE)
+#' @param getPopulation gets the population label along with the sequence differences
 #' @param kit nameof amplicon sequencing kit...
 #' @export
-getSeqdiffsByAmp <- function(db, pop="%", ignoreIndels=FALSE, kit=default_kit) {
+getSeqdiffsByAmp <- function(db, pop="%", ignoreIndels=FALSE, getPopulation=FALSE, kit=default_kit) {
 
 # optionally we want to filter out indels...
   indelString <- ""
   if (ignoreIndels) {
     indelString <- " AND event = 'X'"
   }
+  popString <- ""
+  if (getPopulation) {
+    popString <- ", populations.pop "
+  }
+
   genomeLength <- DBI::dbGetQuery(db, "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 
   diffs <- DBI::dbGetQuery(db,
                             paste0(
-                              "SELECT populations.sampleid, position, event, basecall, amps.start, amps.stop ",
+                              "SELECT populations.sampleid, position, event, basecall, amps.start, amps.stop ", popString ,
                               "FROM   full_mito_diffseqs, populations, amps ",
                               "WHERE  populations.sampleid  = full_mito_diffseqs.sampleid ",
                               "AND amps.kit == '" , kit , "' ",
@@ -488,6 +505,129 @@ getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
   return(foo)
 }
 
+
+
+#' generates a sequence graph for NN search
+#' the input is a mitochondrial mixture (in "empop long" format)
+#' the output is a seqgraph (from Haplotypical)
+#'
+#' @importFrom magrittr %>%
+#' @param db the database handle
+#' @param positions positions of alleles in mixture (1-based)
+#' @param alleles allele calls in mixture (1-based)
+#' @param types type of variation; X == mismatch, I == insertion, D == deletion.
+#' @param ignoreIndels Must be set to true. Correctness is only guaranteed if indels are ignored!
+#' @export
+makeDeploidSeqGraph <- function(db, positions, alleles, types, ignoreIndels=TRUE) {
+
+  if (!ignoreIndels) {
+    stop("Cannot be. deploidNN only currently supports mismatches...")
+  }
+
+  if (sum(!types %in% c("X", "I", "D"))>0 ) {
+    stop("Event types must be in the set {X I D}, which is not the case!")
+  }
+
+  tib <- tibble::tibble(Pos=positions, Al=alleles, Type=types)
+  dplyr::filter(tib, Type=='X') %>%
+    dplyr::group_by(Pos) %>%
+    dplyr::summarize(N=dplyr::n_distinct(Al)) %>%
+    dplyr::filter(N==1) %>%
+    dplyr::ungroup() -> homoMismatches
+
+  # join pragma only works with mismatches
+  # filter the table to just consider the sites that are monomorphic
+  homos <- dplyr::semi_join(tib, homoMismatches, by="Pos") %>%
+    dplyr::arrange(Pos) %>%
+    dplyr::filter(Type=='X')
+
+  ref <- getMtgenomeSequence(db, double=FALSE)
+  types <- rep(0L, nrow(homos))
+
+  refRecoded <- seqdiffs2seq(ref, homos$Pos, types, homos$Al, nchar(ref)+1)
+
+  # (wrong iff indels) get the ambiguous sites...
+  others <- dplyr::anti_join(tib, homos, by="Pos")
+  getSeqdiffCodes() -> typeLUT
+
+  # commented out code for edit-distance. if we're tossing indels, let's go simpler (Hamming)
+  #Haplotypical::makeSequenceGraph(refRecoded, others$Al, others$Pos, typeLUT[ others$Type ]+1)
+
+  Haplotypical::makeSequenceHammingGraph(refRecoded, others$Al, others$Pos)
+}
+
+
+testDeploidNN <- function(db) {
+
+
+  ref <- getMtgenomeSequence(db, double=FALSE)
+
+  # whatever design you choose, do this *once*
+  mtGenomes <- getMitoGenomes(db, pop="AM", ignoreIndels=TRUE) # make haploid genomes
+  allDiffs <- getSeqdiffs(db, "AM", ignoreIndels=TRUE) # all sequence differences for the "AM" population
+
+
+  # and then iterate over pairs...
+  mixy <- dplyr::filter(allDiffs, sampleid=="AM_AR_0001"|sampleid=="AM_AR_0002") # pick 2 folks.
+
+
+  # We need to emualate the basecalls as per converge
+  # namely-- if the two people have the same allele, we need to have *1 row*; in the current form there's two rows with the same INFO
+  # (other than who has the allele)
+
+  # if the two people have different alleles and their both not the rCRS, we need two rows (with both alleles)
+  # (deploid will filter that out anyways)
+  # AND
+  # if the two people are different and one == the rCRS at that position
+  # the current representation has 1 row
+  #
+  # for converge processing there would be two alleles at this location instead
+  # (a "heterozygote" call)
+  # which would get split into two rows, one for each allele (with the value of each row either being the allele call or the reference)
+
+  # get all of the reference alleles
+  dplyr::pull(mixy, position) %>% unique() %>% sort -> mixPos
+  refAlleles <- substring(ref, mixPos, mixPos)
+  refTib <- tibble::tibble(position=mixPos, RefAllele=refAlleles)
+
+  # add a RefAllele column; inner_join is equivalent here
+  dplyr::left_join(mixy, refTib, by="position") ->mixy
+
+  dplyr::group_by(mixy, position) %>%
+    dplyr::summarize(N=dplyr::n(), # number of allele calls at site. 1 or 2
+                     A1=basecall[[1]], # no matter what, first allele is what we have
+                     A2=ifelse(N==1, RefAllele[[1]], basecall[[2]]), # second allele is the ref if there's no other info,
+                     Col=ifelse(A1==A2, A1, paste(A1, A2, sep=";"))  # concatenate the two records as a ; separated string
+                     ) -> mixSplit
+
+  dplyr::select(mixSplit, position, Col) %>%
+    tidyr::separate_rows(Col, sep=";") %>% # split the Col string; two rows for het calls; 1 row for hom calls
+    dplyr::mutate(event="X") %>% # define the event to be a substitution
+    dplyr::arrange(position) -> mixAsPerConverge
+
+
+  # make a sequence graph
+  # supports indels...
+  makeDeploidSeqGraph(db, mixAsPerConverge$position, mixAsPerConverge$Col, mixAsPerConverge$event, ignoreIndels=TRUE) -> gr
+
+  # all edit distances; capped at 4 (0-3 are meaningful distances)
+  mtGenomes$edDist <- Haplotypical::fastBoundedHammingGraphDist(gr, mtGenomes$sequence, 4)
+  filter(mtGenomes, edDist<4, sampleid!="AM_AR_0001", sampleid!="AM_AR_0002") %>% pull(sampleid) %>% as.character() -> nearNeighbors
+
+  # old code (levenshtein distance)
+  # mtGenomes$edDist <- -1
+
+  #for (i in 53:nrow(mtGenomes)) {
+   # print(i)
+  #  mtGenomes$edDist[[i]] <- getSequenceGraphEditDistance(alignSequenceGraph(gr, mtGenomes$sequence[[i]] ))
+  #}
+
+
+
+}
+
+
+
 #' generates amplicon sequence data from difference encodings
 #' @importFrom magrittr %>%
 #' @param db the database handle
@@ -502,8 +642,13 @@ getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
                                  "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 
 
-  diffs <- dplyr::filter(
-      getSeqdiffsByAmp(db, pop, ignoreIndels, kit),
+
+  origdiffs <- getSeqdiffsByAmp(db, pop, ignoreIndels, getPopulation=TRUE, kit) # without subsampling sites...
+
+  # just the sequence differences we care about
+  # note that the sample id may be filtered (if only variant for this person is in the blacklist)
+  # thus to get the original smapleids we need to refer to origdiffs
+  diffs <- dplyr::filter(origdiffs,
       ! position %in% blk,
       ! position %in% (blk+mtgenomeLen) )
 
@@ -514,6 +659,7 @@ getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
   #
   dplyr::group_by(diffs,
       sampleid,
+      pop,
       start,
       stop
     ) %>%
@@ -542,10 +688,8 @@ getAmps <- function(db, pop='%', ignoreIndels=FALSE, kit=default_kit, blk=c()) {
 # any amp that is == to the rCRS is not present.
 # we add a no-op sequence difference for individuals that == the rCRS
 # (to ensure the individual isn't lost with the join)
-
-
   base::expand.grid( # first, make a data frame with all pairs of individuals and stop coordinates
-    sampleid=unique(diffs$sampleid),
+    sampleid=unique(origdiffs$sampleid),
     stop=refamps$stop, stringsAsFactors = FALSE) %>%
     dplyr::left_join(refamps, # and add in the start and reference Seq
               by=c("stop")) %>%
