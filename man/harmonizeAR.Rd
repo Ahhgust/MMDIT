@@ -17,5 +17,8 @@ and a vector p of sites from a plaf/pan (createPlafPan object)
 and matches or "harmonizes" the number of sites between both dataframes
 }
 \examples{
+\dontrun{
 # harmonize(AltRef,p)
+}
+
 }

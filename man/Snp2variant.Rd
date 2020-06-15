@@ -12,7 +12,7 @@ Snp2variant(Pos, Allele, Type)
 \item{Allele}{A vector of nucleotide bases present in the SNPs (character strings). Deletions are represented by ""}
 
 \item{Type}{A vector of the type of mutation represented by the SNP. Possible values include "Substitution", "Insertion"
-and "Deletion" (charachter strings)}
+and "Deletion" (character strings)}
 }
 \description{
 This function takes three vectors Position, Allele and Type from the SNPs

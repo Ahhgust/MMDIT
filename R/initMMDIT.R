@@ -17,25 +17,25 @@
 
 
 # laziness. For when I source this script... nice to load libs
-loadLibs <- function() {
-library(Rcpp)
-library(DBI)
-library(RSQLite)
-library(stringr)
-library(Haplotypical)
-library(stringdist)
+#loadLibs <- function() {
+#library(Rcpp)
+#library(DBI)
+#library(RSQLite)
+#library(stringr)
+#library(Haplotypical)
+#library(stringdist)
 
 # for reading fasta files (reference genome)
-library(seqinr)
+#library(seqinr)
 
 # quality of life dependencies
-suppressPackageStartupMessages( library(tibble) )
-suppressPackageStartupMessages( library(readr) )
-suppressPackageStartupMessages( library(dplyr) )
-suppressPackageStartupMessages( library(tidyr) )
-suppressPackageStartupMessages( library(magrittr) )
+#suppressPackageStartupMessages( library(tibble) )
+#suppressPackageStartupMessages( library(readr) )
+#suppressPackageStartupMessages( library(dplyr) )
+#suppressPackageStartupMessages( library(tidyr) )
+#suppressPackageStartupMessages( library(magrittr) )
 
-}
+#}
 
 
 
@@ -74,11 +74,13 @@ dbSendQueryAndClear <- function(db, query) {
 #' @return the handle to the database (throughout all other documentation, this is db)
 #' @export
 #' @examples
+#' \dontrun{
 #' # Make a new MMDIT database...
 #'
-#' # db <- makeDB(dataDir, dbName, overwrite=TRUE )
+#' db <- makeDB(dataDir, dbName, overwrite=TRUE )
 #' # add the reference genome (can be only 1)
-#' # loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
+#' loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
+#' }
 #'
 makeDB <- function(path, dbFilename, overwrite=FALSE) {
 
@@ -198,9 +200,9 @@ loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
 #' @param fastaFile (must be both the name of the file and the path to open it. This is passed directly to seqinr::read.fasta
 #'
 #' @examples
-#'
+#' \dontrun{
 #' # loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
-#'
+#' }
 loadReferenceGenome <- function(db, fastaFile) {
 
    fa <- seqinr::read.fasta(fastaFile, as.string=TRUE, seqtype="DNA", seqonly = TRUE)
@@ -232,9 +234,9 @@ loadReferenceGenome <- function(db, fastaFile) {
 #'
 #' @examples
 #' # One way to add another kit:
-#'
+#' \dontrun{
 #' # loadAmpData(db, "data/Mybedfile.bed", kit="SomeOtherKit", append=TRUE)
-#'
+#' }
 #'
 writeAmp <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
    amps <- suppressMessages( readr::read_delim(ampFile, delim=sep) )
@@ -279,7 +281,9 @@ writeAmp <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
 #' @return returns data frame with 4 columns: the amp ID, the start coordinate (0-based), the stop coordinate (1-based), and the Seq(uence) of the rcrs for the amp
 #'
 #' @examples
-#' # amps <- getRefAmpSeqs(db, kit="PrecisionID")
+#' \dontrun{
+#' amps <- getRefAmpSeqs(db, kit="PrecisionID")
+#' }
 #' @export
 getRefAmpSeqs <- function(db, kit=default_kit) {
   #TODO: Take in start/stop coordinates as well as a kit.
@@ -458,7 +462,8 @@ getMtgenomeSequence <- function(db, double=TRUE) {
                   "SELECT sequence FROM mtgenome LIMIT 1")[[1]])
 }
 
-
+#' gets full mitogenomes
+#'
 #' generates amplicon sequence data from difference encodings
 #' @importFrom magrittr %>%
 #' @param db the database handle
@@ -505,8 +510,8 @@ getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
   return(foo)
 }
 
-
-
+#' seqgraphs!
+#'
 #' generates a sequence graph for NN search
 #' the input is a mitochondrial mixture (in "empop long" format)
 #' the output is a seqgraph (from Haplotypical)
@@ -627,7 +632,8 @@ testDeploidNN <- function(db) {
 }
 
 
-
+#' makes amps
+#'
 #' generates amplicon sequence data from difference encodings
 #' @importFrom magrittr %>%
 #' @param db the database handle

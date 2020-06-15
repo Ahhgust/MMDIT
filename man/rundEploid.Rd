@@ -26,3 +26,8 @@ the dEploid function on them. It retuns the dEploid output
 with includes estimated haplotypes, mixture proprotions and other phasing statistics.
 Additionaly this function also returns a list of nucleotide positions that violate the infinte sites model.
 }
+\examples{
+\dontrun{
+rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
+}
+}

@@ -1,9 +1,6 @@
 #load packages
-#suppressPackageStartupMessages(library(tidyr))
-#suppressPackageStartupMessages(library(dplyr))
-#suppressPackageStartupMessages(library(stringr))
-#suppressPackageStartupMessages(library(magrittr))
-#suppressPackageStartupMessages(library(tibble))
+
+
 
 
 #' @title
@@ -18,7 +15,10 @@
 #' @importFrom magrittr %>%
 #' @export
 #' @examples
+#' \dontrun{
 #' # createPlafPan(EmpopLong)
+#' }
+#'
 createPlafPan<-function(EmpopLong) {
   Wide<-tidyr::spread(EmpopLong, Sample.name, Nuc)#go from long format to wide again
   Wide$POS<-as.numeric(Wide$POS)#coerce position to number to be able to sort
@@ -62,7 +62,9 @@ createPlafPan<-function(EmpopLong) {
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
 #'
 #' @examples
+#' \dontrun{
 #' # harmonize(plaf,q)
+#' }
 
 #Function for harmonizing the panel so that it has the same number of sites as
 #other dEploid input
@@ -90,7 +92,10 @@ harmonizePa<-function(panel,q) {
 #' @param q vector of sites from an AltRef dataframe with reference and alternate allele counts (modified createAltRef object)
 #' @export
 #' @examples
+#' \dontrun{
 #' # harmonize(plaf,q)
+#' }
+#'
 #Function for harmonizing the plaf so that it has the same number of sites as
 #other dEploid input
 harmonizePl<-function(Plaf,q) {
@@ -118,7 +123,10 @@ harmonizePl<-function(Plaf,q) {
 #' @param p vector of sites from a plaf/pan dataframe (createPlafPan object)
 #'
 #' @examples
+#' \dontrun{
 #' # harmonize(AltRef,p)
+#' }
+#'
 #' @export
 #Function for harmonizing the AltRef so that it has the same number of sites as
 #other dEploid input
@@ -144,7 +152,7 @@ harmonizeAR<-function(AltRef, p){
 #' @param Pos A vector of genomic positions for the SNPs (type numeric)
 #' @param Allele A vector of nucleotide bases present in the SNPs (character strings). Deletions are represented by ""
 #' @param Type A vector of the type of mutation represented by the SNP. Possible values include "Substitution", "Insertion"
-#' and "Deletion" (charachter strings)
+#' and "Deletion" (character strings)
 #'
 #' @examples
 #' Snp2variant("73", "G", "Substitution")
@@ -203,8 +211,10 @@ write_mbop<-function(SampleID, Variant){
 #' If no value is provided, the first line is ommited by default
 #'
 #' @examples
-#' #   Empop2variant("EMPOP.emp")
-#' #   Empop2variant("EMPOP.emp", s = 3)
+#' \dontrun{
+#'   Empop2variant("EMPOP.emp")
+#'   Empop2variant("EMPOP.emp", s = 3)
+#' }
 Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
 
   e <- readr::read_delim(empopFile, skip=s, delim="\\0", guess_max=guess_max, col_names=FALSE, col_types=readr::cols())
@@ -279,9 +289,9 @@ Variant2snp<-function(Variant){
 #' @param Pa The path to folder where EMPOP files are stored (charachter string)
 #'
 #'@examples
-#'
-#' # Hmtdb2Empop(LUT, Pa = R.home())
-#'
+#'\dontrun{
+#' Hmtdb2Empop(LUT, Pa = R.home())
+#' }
 #'
 Hmtdb2Empop<-function(LUT,Pa) {
 
@@ -352,7 +362,9 @@ Hmtdb2Empop<-function(LUT,Pa) {
 #' @param recomb numeric argument that gives the function the constant recombination probability (default value of 0.0)
 #' @param k A numeric argument that tells the function the number of individuals in the mixture (default value 5, maximum of 5)
 #' @examples
-#  # rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
+#' \dontrun{
+#' rundEploid(AR, long, NumMCMC=3000, exportPostProb, recomb=0.0, k=5)
+#' }
 #' @export
 rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5){
 
@@ -439,7 +451,9 @@ rundEploid<-function(AR, long, NumMCMC=800, exportPostProb=TRUE, recomb=0.0, k=5
 #' @param dEploid.run dEploid object
 #'
 #'@examples
-#' # getMixProps(dEploid.run)
+#'\dontrun{
+#' getMixProps(dEploid.run)
+#' }
 #' @export
 getMixProps<-function(dEploid.run){
   MixProps<-utils::tail(dEploid.run$Proportions, n=1)%>% base::sort(decreasing = TRUE)

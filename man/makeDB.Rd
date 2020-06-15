@@ -24,10 +24,12 @@ the handle to the database (throughout all other documentation, this is db)
 This *creates* an EMPTY MMDIT database
 }
 \examples{
+\dontrun{
 # Make a new MMDIT database...
 
-# db <- makeDB(dataDir, dbName, overwrite=TRUE )
+db <- makeDB(dataDir, dbName, overwrite=TRUE )
 # add the reference genome (can be only 1)
-# loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
+loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
+}
 
 }

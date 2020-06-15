@@ -13,5 +13,7 @@ getMixProps(dEploid.run)
 This function takes the output of dEploid and returns mixture proportions for major and minor contributors
 }
 \examples{
-# getMixProps(dEploid.run)
+\dontrun{
+getMixProps(dEploid.run)
+}
 }

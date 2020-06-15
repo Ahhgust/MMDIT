@@ -14,5 +14,8 @@ This function takes a long dataframe (containing differences in coding compared 
 in a select set of individuals) and returns panel and plaf dataframes
 }
 \examples{
+\dontrun{
 # createPlafPan(EmpopLong)
+}
+
 }

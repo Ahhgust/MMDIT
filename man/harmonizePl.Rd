@@ -17,5 +17,8 @@ and a vector q of sites from am AltRef (modified createAltRef object)
 and matches or "harmonizes" the number of sites between both dataframes
 }
 \examples{
+\dontrun{
 # harmonize(plaf,q)
+}
+
 }

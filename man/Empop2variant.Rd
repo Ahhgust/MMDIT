@@ -24,6 +24,8 @@ All individuals in the empop file must be single-source, with *no* heteroplasmie
 We recommend taking the major allele in the case of heteroplasmy.
 }
 \examples{
-#   Empop2variant("EMPOP.emp")
-#   Empop2variant("EMPOP.emp", s = 3)
+\dontrun{
+  Empop2variant("EMPOP.emp")
+  Empop2variant("EMPOP.emp", s = 3)
+}
 }

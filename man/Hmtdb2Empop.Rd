@@ -16,8 +16,8 @@ This function takes a lookup-table file and a path to EMPOP files
 and returns a bigger EMPOP file (i.e. all EMPOP files in the path bound together)
 }
 \examples{
-
-# Hmtdb2Empop(LUT, Pa = R.home())
-
+\dontrun{
+Hmtdb2Empop(LUT, Pa = R.home())
+}
 
 }

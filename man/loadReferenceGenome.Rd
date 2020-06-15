@@ -21,7 +21,7 @@ the difference encodings MUST be with respect to this reference genome!!
 i.e., in all likelihood this should *ONLY* be the rCRS sequence.
 }
 \examples{
-
+\dontrun{
 # loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
-
+}
 }
