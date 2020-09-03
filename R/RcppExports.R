@@ -38,7 +38,7 @@ str2int <- function(s, out) {
 #' subsequent indexes are the jackknife estimates.
 #' To get a upper bound on FST try:
 #'
-#' fst_buckleton(alleles, pops, nJack=1000, approximate=false) -> fsts
+#' fst_buckleton(alleles, pops, nJack=1000, approximate=FALSE) -> fsts
 #' quantile(fsts[-1], 0.99)
 #'
 #' for a naive estimate of 99CI FST

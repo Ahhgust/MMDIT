@@ -270,6 +270,41 @@ writeAmp <- function(db, ampFile,  kitName, sep="\t", append=TRUE) {
 }
 
 
+#' Get amplicon coordinates
+#'
+#' Generates the amplicon coordinates
+#' for some kit
+#' For use with MMDIT only!
+#'
+#' @param db the database connection
+#' @param kit the kit name (must be a valid KIT in the amps table)
+#' @return returns data frame with 4 columns: the amp ID, the start coordinate (0-based), the stop coordinate (1-based)
+#'
+#' @examples
+#' \dontrun{
+#' amps <- getAmpCoordinates(db, kit="PrecisionID")
+#' }
+#' @export
+getAmpCoordinates <- function(db, kit=default_kit) {
+  #TODO: Take in start/stop coordinates as well as a kit.
+  loc <- DBI::dbGetQuery(db,
+                         sprintf(
+                           "SELECT start, stop
+                    FROM
+                     amps
+                    WHERE
+                    kit= '%s'", kit) )
+
+  if (nrow(loc) == 0) {
+    stop(
+      paste(
+        "No data for kit ", kit , " was found...")
+    )
+  }
+  return(loc)
+}
+
+
 #' Amplicon sequences of reference
 #'
 #' Generates the amplicon sequences
@@ -469,7 +504,7 @@ getMtgenomeSequence <- function(db, double=TRUE) {
 #' @param db the database handle
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default FALSE)
-#' @param blk blacklist of sites to filter out!
+#' @param blk exclusion list of sites to filter out!
 #' @export
 getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
 
@@ -881,5 +916,195 @@ addKnownHaplotypes <- function(db, empopFile) {
   return(1)
 }
 
+#' Estimates Fst and quantiles of Fst
+#'
+#' This function computes Buckleton's estimator of Fst
+#' (theta)
+#' and it computes an upper-bound. It's a friendly
+#' wrapper for fst_buckleton
+#'
+#' @param alleles strings ; alleles (haplotypes);  1 row per chromosome sampled
+#' @param populations strings ; same length as alleles (parallel array); population label associated with said haplotype
+#' @param quantile ; [0,1] ; what quantile in the Fst distribution would you like?
+#' @param nJack ; non-negative integer ; number of leave-one-out jackknifes taken
+#' @param approximate ; boolean ; whether or not allele frequencies (approximate=TRUE) or site hetero/homozygosities (FALSE) should be used
+#'
+estimateTheta <- function(alleles, populations, quantile=0.95, nJack=0, approximate=FALSE) {
 
+
+  if (nJack==0) {
+    # take the point-estimate ('mean')
+     fst <- fst_buckleton(alleles, populations, nJack, approximate)
+  } else {
+     fst <- fst_buckleton(alleles, populations, nJack, approximate)
+     # index 1 in fst is the point estimate (non-jackknifed)
+     # remaining indexes are jackknifed. Take an upper-bound
+     fst <- quantile(fst[-1], probs=quantile[[1]])
+  }
+
+   return(fst)
+}
+
+
+clopperHelper <- function(s, tot, quantile) {
+  PropCIs::exactci(s, tot, quantile)$conf.int[2]
+}
+
+#' Estimates a naive (frequency-based) log10-likelihood of a set of observed alleles
+#'
+#'
+#' This computes the likelihood of a vector of alleles (allelesObserved)
+#' given a population of alleles (1 allele per individual, or with weights (populationWeights))
+#'
+#' The likelihood can be computed two ways:
+#' Using the allele frequency correction of Clopper and Pearson (upper-bound taken from correctionQuantile)
+#' OR
+#' taking a simple point estimate (frequency).
+#'
+#' This computes: log10 ( n! * f(a) * f(b), ... ) ) for
+#' n alleles of type: a, b, c, with frequencies f(a), f(b), ...
+#' Two alleles (p,q) this gives the standard formulation of 2pq
+#'
+#' f(a) is the trickier part: with the simple point estimate it's computed
+#' using the allele frequency (union of observed and population alleles)
+#'
+#' of quantile is sought, then the upper bound from the binomial is used
+#' eg, if you have an allele frequency of 1/100, and upper-bound is taken
+#' with the forensic standard being the upper-portion of the 95 CI
+#'
+#' To make for less redundancy, allele counts can be used; eg, you can have 10 A alleles and 10 B alleles
+#' You can either give the function 10 As and 10 Bs (allelesInPopulation) or you can give it:
+#' allelesInPopulation=c("A", "B"), populationCounts=c(10, 10)
+#'
+#' e.g., these are equivalent:
+#' 10**estimateLog10LikelihoodNaive(c("A", "B"), rep(LETTERS[1:10], 10), correctionQuantile = 0.95
+#' 10**estimateLog10LikelihoodNaive(c("A", "B"), LETTERS[1:10], populationCounts=rep(10, 10), correctionQuantile = 0.95)
+#'
+#' @param allelesObserved Vector of alleles observed (treated as categorical variables)
+#' @param allelesInPopulation Vector of alleles in the population. When populationWeights is null, each allele is assumed to have a weight of 1
+#' @param populationCounts vector of integers ; the number of times each allele (allelesInPopulation) is found; default: all weights are 1
+#' @param correctionQuantile real number; the quantile used in the Clopper and Pearson correction (binomial). If <= 0, the frequency estimate is used.
+#'
+estimateLog10LikelihoodNaive <- function(allelesObserved, allelesInPopulation, populationCounts=NULL, correctionQuantile=0.95) {
+
+
+  if (is.null(populationCounts)) {
+    populationCounts <- rep(1, length(allelesInPopulation)) # if no weights, all alleles are assumed to have weight 1
+  } else if (length(populationCounts) != length(allelesInPopulation)) {
+    stop("The populationWeights needs to be the same length as the allelesInPopulation vector")
+  } else if (any(populationCounts<1)) {
+    stop("I need population counts, not population frequencies!")
+  }
+
+
+  nTot <- sum(populationCounts) + length(allelesObserved)
+
+  # compute the allele proportion (numerator)
+  # permit repeated alleles with weights
+  tibble::tibble(Alleles=allelesInPopulation,
+                 Weight=populationCounts
+                 ) %>%
+    dplyr::group_by(Alleles) %>%
+    dplyr::summarize(PopCount=sum(Weight), .groups='keep') %>%
+    dplyr::ungroup() ->alleleCounts
+
+
+  tibble::tibble(Alleles=allelesObserved) %>%
+    dplyr::group_by(Alleles) %>%
+    dplyr::summarize(ObservedCount=dplyr::n(), .groups='keep') %>%
+    dplyr::left_join(
+      alleleCounts,
+      by="Alleles") %>%
+    dplyr::mutate( #alleles not found in the population but in the same have a count of 0...
+      PopCount= ifelse(is.na(PopCount), 0, PopCount),
+      TotCount=PopCount+ObservedCount) -> summaries
+
+
+   if (correctionQuantile<= 0) {
+     # definitional: TotCount>0
+      freqs <-   summaries$TotCount/nTot
+   } else{
+    # compute upper-bounds (Clopper and Pearson style)
+     # arguments can be seen for using PopCount
+     sapply( summaries$PopCount, clopperHelper, nTot,  correctionQuantile) -> freqs
+   }
+
+   # avoid underflow (take logs); return the log-likelihood
+   # this is the log-equivalent form of equation 2 in Ge et al. 2010
+   # that is: log10 ( n! * freq(a) * freq(b), ... ) ) for
+   # n alleles of type: a, b, c...
+   # eg, for two alleles p and q, this gives 2pq
+   sum(
+     log10(
+       freqs
+        )
+     ) + log10(
+       factorial(length(allelesObserved))
+       )
+}
+
+#' Theta-corrected likelihood computation
+#'
+#' This computes the theta corrected likelihood of a set of alleles hypothesized (unknowns)
+#' given a set of known contributors (allelesKnown) as well as a sample of alleles from the relevant population
+#' and an estimate of co-ancestry.
+#'
+#' This estimator is equation 3 in Ge et al. 2010 (doi.org/10.1016/j.legalmed.2010.02.003)
+#'
+#' at a high level this computes the likelihood of a set of alleles hypothesized to explain some mixture
+#' Some are there by the hypothesis (a victim -> contributing allelesKnown)
+#' and others come from a database (unknowns)
+#' as well as a sample of alleles from the relevant population (allelesInPopulation)
+#'
+#' This estimates the allele frequencies (point estimate from known + unknown + population combined)
+#' and weighs the likelihood of the alleles observed based on whether or not the unknowns and the knowns are identical
+#' (x-vector).
+#' A theta correction is also employed, where theta is an estimate of Fst (fst_buckleton)
+#'
+#' It takes in a set of allelesKnown to be in the mixture (according to the hypothesis)
+#'
+#' @param allelesKnown vector of alleles known to be in the mixture (not database, may be empty)
+#' @param allelesUnknown vector of alleles (from database) that, when combined with allelesKnown, explain the mixture
+#' @param allelesInPopulation a vector of alleles sampled from the population (also from database, but may in practice come from a different sub-population)
+#' @param theta theta-correction (Fst, taken from fst_buckleton)
+estimateLog10LikelihoodTheta <- function(allelesKnown, allelesUnknown, allelesInPopulation, theta) {
+
+  nUnknown <- length(allelesUnknown)
+  if (nUnknown < 1) {
+    stop("I need at least 1 unknown (database-derived) haplotype")
+  }
+
+
+  # estimate the allele frequencies...
+  # all alleles in one pot.
+  alleles <- c(allelesKnown, allelesUnknown, allelesInPopulation, recursive=TRUE)
+  nAlleles <- length(alleles)
+
+  tibble::tibble(Alleles=alleles) %>%
+    dplyr::group_by(Alleles) %>%
+    dplyr::summarize(freq=dplyr::n()/nAlleles, .groups='keep') %>%
+    dplyr::ungroup() -> alleleFreqs
+
+  tibble::tibble(Alleles=allelesUnknown) %>%
+    dplyr::left_join(alleleFreqs,
+                     by="Alleles") %>%
+    dplyr::pull(freq) -> Hi
+
+  xvec <- as.integer( allelesUnknown %in% allelesKnown)
+
+  ivec <- 1:nUnknown
+  k <- length(allelesKnown)
+
+  # xi(theta) + (1-theta)*Pr(Hi)
+  #    /
+  # 1 + (i + k -2)theta
+
+  ( (xvec*theta) + (1-theta)*Hi ) /
+
+  (1+ (ivec + k -2)*(theta)) -> thetaSeries
+
+
+  # sum of logs == log of products
+  sum( log10(thetaSeries) ) + log10(factorial(nUnknown))
+}
 

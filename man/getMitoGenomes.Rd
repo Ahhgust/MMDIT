@@ -13,7 +13,7 @@ getMitoGenomes(db, pop = "\%", ignoreIndels = FALSE, blk = c())
 
 \item{ignoreIndels}{strips out indel events (default FALSE)}
 
-\item{blk}{blacklist of sites to filter out!}
+\item{blk}{exclusion list of sites to filter out!}
 }
 \description{
 generates amplicon sequence data from difference encodings
