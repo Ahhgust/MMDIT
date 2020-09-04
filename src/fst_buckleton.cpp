@@ -278,7 +278,7 @@ fst_buckleton(Rcpp::StringVector alleles, Rcpp::StringVector populations, int nJ
   IntVect::iterator pops = iPops.begin();
   IntVect::iterator pals = iAlleles.begin();
 
-  std::vector< std::pair<int, int>> jacks( nJack );
+  std::vector< std::pair<int, int> > jacks( nJack );
   int i=0;
 
   for( ; pops != iPops.end(); ++pops, ++pals) {

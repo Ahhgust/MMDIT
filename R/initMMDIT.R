@@ -511,7 +511,7 @@ getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
   mtgenomeLen <- DBI::dbGetQuery(db,
                                  "SELECT seqlen FROM mtgenome LIMIT 1")[[1]]
 
-  lookupcodes <- getSeqdiffCodes() # translates X,I,D into 1,2,3
+  lookupcodes <- getSeqdiffCodes() # translates X,I,D into 0,1,2
   diffs <- getSeqdiffs(db, pop, ignoreIndels, getPopulation=TRUE)
   # making this into a factor retains individuals (regardless of filtering)
   diffs$sampleid <- factor(diffs$sampleid)
