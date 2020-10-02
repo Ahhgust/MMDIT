@@ -9,7 +9,7 @@ seqdiffs2seq(Tseq, positions, types, events, initBuff = -1L)
 \arguments{
 \item{Tseq}{(the target sequence; e.g., the reference genome)}
 
-\item{positions}{(the positions where the sequence differences are)}
+\item{positions}{(the positions where the sequence differences are, 1 based indexing)}
 
 \item{types}{(the types of events (0,1,2 for mismatch, deletions and insertions)}
 
@@ -18,10 +18,14 @@ seqdiffs2seq(Tseq, positions, types, events, initBuff = -1L)
 \item{initBuff}{(guess as to the final size of the query sequence. Overestimating is better than under)}
 }
 \description{
-This takes the output from: ksw2_gg_align_df(Tseq, Qseq, ... ) (or other)
-and the reference (Tseq)
-and uses it to re-create Qseq.
-The main advantage of this approach is that particular types
-of mutations can be filtered, as well as variants that fall in
-particular regions.
+This takes a difference encoding
+(position, 1-based index, the type of event (sub, insert, delete), and the base change)
+and constructs a string based on that difference encoding.
+}
+\details{
+insertions at position i are assumed to occur between positions i and i+1
+insertions prior to the first base are allowed (position ==0)
+
+This was originall designed to work with: ksw2_gg_align_df
+but that is no longer supported (the indexing of the SNPs has changed)
 }

@@ -575,14 +575,21 @@ ksw2_gg_align(std::string Tseq,
 
 //' Computes a string from a difference encoding
 //'
-//' This takes the output from: ksw2_gg_align_df(Tseq, Qseq, ... ) (or other)
-//' and the reference (Tseq)
-//' and uses it to re-create Qseq.
-//' The main advantage of this approach is that particular types
-//' of mutations can be filtered, as well as variants that fall in
-//' particular regions.
+//' This takes a difference encoding
+//' (position, 1-based index, the type of event (sub, insert, delete), and the base change)
+//' and constructs a string based on that difference encoding. All encodings are vectorized. The
+//' positions are positions in the Tseq (reference).
+//' The events need to be ordered by position then type (mismatches need to be first, really)
+//' checks on mutually exclusive events are not made.
+//'
+//' insertions at position i are assumed to occur between positions i and i+1
+//' insertions prior to the first base are allowed (position ==0)
+//'
+//' This was originally designed to work with: ksw2_gg_align_df
+//' but that is no longer supported (the indexing of the SNPs has changed)
+//'
 //' @param Tseq (the target sequence; e.g., the reference genome)
-//' @param positions (the positions where the sequence differences are)
+//' @param positions (the positions where the sequence differences are, 1 based indexing)
 //' @param types (the types of events (0,1,2 for mismatch, deletions and insertions)
 //' @param events (the nucleotides involved with the event)
 //' @param initBuff (guess as to the final size of the query sequence. Overestimating is better than under)
@@ -608,6 +615,7 @@ seqdiffs2seq(std::string Tseq,
   // and make a nul string of that size
   std::string query(initBuff, '\0');
 
+
   char eventCode;
   int eventPos;
   std::string event;
@@ -623,16 +631,21 @@ seqdiffs2seq(std::string Tseq,
 
 
     eventCode = 'X'; // mismatch
-    if (types[i]==2)
+    if (types[i]==1)
       eventCode= 'D';
-    else if (types[i] == 3)
+    else if (types[i] == 2)
       eventCode='I';
 
     event = events[i];
 
     // fill in the string for all bases prior to the variation
-    if (previousPos < eventPos-1) {
+    if (previousPos < eventPos-1 ||
+        (previousPos==eventPos-1 && eventCode=='I')
+        ) {
       int prevMatches = eventPos - previousPos - 1;
+      if (eventCode=='I') // I refers to the space between bases (after current index). Hence, add 1 more base
+        prevMatches += 1;
+
       query.replace(queryIndex, prevMatches, tseq);
       tseq += prevMatches;
       queryIndex += prevMatches;
@@ -644,10 +657,15 @@ seqdiffs2seq(std::string Tseq,
       tseq += 1;
       queryIndex += 1;
     } else if (eventCode == 'D') { // deletion in the query...
-      tseq += event.size(); // by construction these are 1 unit long... but just to be safe.
+      if (event.size() > 1)
+        tseq += event.size(); // by construction these are 1 unit long... but just to be safe.
+      else
+        ++tseq;
+
     } else { // bases inserted
-      query.replace(queryIndex, event.size(), event);
-      queryIndex += event.size();
+      // note: the base prior to the insertion (queryIndex) is added in the if statement above
+        query.replace(queryIndex, event.size(), event);
+        queryIndex += event.size();
     }
 
     previousPos = eventPos;

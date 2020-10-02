@@ -67,6 +67,131 @@ fst_buckleton <- function(alleles, populations, nJack = 0L, approximate = FALSE)
     .Call('_MMDIT_fst_buckleton', PACKAGE = 'MMDIT', alleles, populations, nJack, approximate)
 }
 
+#' Given a description of the variants in a mixture, will generate a graph for use with later analysis.
+#'
+#' @param refRS The reference sequence.
+#' @param varS The starting points of the variant regions.
+#' @param varE The ending points of the variant regions.
+#' @param varSeq The sequences for each variant.
+#' @return An opaque object containing the graph.
+makeVariantGraph <- function(refRS, varS, varE, varSeq) {
+    .Call('_MMDIT_makeVariantGraph', PACKAGE = 'MMDIT', refRS, varS, varE, varSeq)
+}
+
+#' Will return all alignments of a sequence to a graph (within some maximum edit distance).
+#'
+#' @param sgrap The graph.
+#' @param query The sequence.
+#' @param maxEdit The maximum edit distance.
+#' @return An opaque object containing the graph traversals.
+traverseSequenceGraph <- function(sgrap, query, maxEdit) {
+    .Call('_MMDIT_traverseSequenceGraph', PACKAGE = 'MMDIT', sgrap, query, maxEdit)
+}
+
+#' Vectorized version of traverseSequenceGraph.
+#'
+#' @param sgrap The graph.
+#' @param queries The sequences.
+#' @param maxEdit The maximum edit distance.
+#' @return A list of opaque objects containing the graph traversals.
+traverseSequencesGraph <- function(sgrap, queries, maxEdit) {
+    .Call('_MMDIT_traverseSequencesGraph', PACKAGE = 'MMDIT', sgrap, queries, maxEdit)
+}
+
+#' Will return the edit distances for the possible alignments to a graph.
+#'
+#' @param toEx The graph traversals.
+#' @return The edit distance of each traversal: length zero means no valid traversals were possible.
+getTraversalEditDistances <- function(toEx) {
+    .Call('_MMDIT_getTraversalEditDistances', PACKAGE = 'MMDIT', toEx)
+}
+
+#' Vectorized version of getTraversalEditDistances.
+#'
+#' @param toExS The graph traversals.
+#' @return The edit distance of each traversal: length zero means no valid traversals were possible.
+getTraversalsEditDistances <- function(toExS) {
+    .Call('_MMDIT_getTraversalsEditDistances', PACKAGE = 'MMDIT', toExS)
+}
+
+#' Will return the nodes in the graph that the selected traversal hit..
+#'
+#' @param sgrap The graph.
+#' @param toEx The graph traversals.
+#' @param travInd The index of the traversal to examine (one-indexed).
+#' @return The graph nodes hit by the traversal.
+getTraversalHitNodes <- function(sgrap, toEx, travInd) {
+    .Call('_MMDIT_getTraversalHitNodes', PACKAGE = 'MMDIT', sgrap, toEx, travInd)
+}
+
+#' Will return the nodes in the graph that the selected traversals collectively hit.
+#'
+#' @param sgrap The graph.
+#' @param toExS The graph traversals.
+#' @param travInds The indices for each traversal.
+#' @return The graph nodes hit by the traversals.
+getTraversalsHitNodes <- function(sgrap, toExS, travInds) {
+    .Call('_MMDIT_getTraversalsHitNodes', PACKAGE = 'MMDIT', sgrap, toExS, travInds)
+}
+
+#' Lists the nodes in a sequence graph.
+#'
+#' @param sgrap The graph.
+#' @return The graph node indices.
+listGraphNodes <- function(sgrap) {
+    .Call('_MMDIT_listGraphNodes', PACKAGE = 'MMDIT', sgrap)
+}
+
+#' Enumerate the possible sets of traversals.
+#'
+#' @param toExS The graph traversals.
+#' @return The possible collective traversal indices.
+enumerateTraversalPossibilities <- function(toExS) {
+    .Call('_MMDIT_enumerateTraversalPossibilities', PACKAGE = 'MMDIT', toExS)
+}
+
+#' For each set of traversals, will count the number of missed nodes.
+#'
+#' @param sgrap The graph.
+#' @param toExS The graph traversals.
+#' @param travISet The sets of traversals.
+#' @return The number of nodes missed by each set of traversals.
+countTraversalsMissedNodes <- function(sgrap, toExS, travISet) {
+    .Call('_MMDIT_countTraversalsMissedNodes', PACKAGE = 'MMDIT', sgrap, toExS, travISet)
+}
+
+#' Find sets of individuals that can explain the graph.
+#'
+#' @param sgrap The graph.
+#' @param toExS The graph traversals.
+#' @param numInds The number of individuals to consider.
+#' @param maxMissNode The maximum number of missed nodes.
+#' @return The sets of individuals that can explain the graph.
+findExplainingIndividuals <- function(sgrap, toExS, numInds, maxMissNode) {
+    .Call('_MMDIT_findExplainingIndividuals', PACKAGE = 'MMDIT', sgrap, toExS, numInds, maxMissNode)
+}
+
+#' Get the edit sequence a traversal represents.
+#'
+#' @param sgrap The graph.
+#' @param toEx The traversal set in question.
+#' @param travInd The index of the traversal set.
+#' @return The edit script to go from the query sequence to the reference graph. Three parallel vectors: the first is the location in the (current state of the) query, the second is the operation type (1 for substitution, 2 for insertion, 3 for deletion), and the third is the character (is garbage for deletion).
+expandTraversalEditSequence <- function(sgrap, toEx, travInd) {
+    .Call('_MMDIT_expandTraversalEditSequence', PACKAGE = 'MMDIT', sgrap, toEx, travInd)
+}
+
+#' Get the variations from the reference that a traversal through the graph represents.
+#'
+#' @param refRS The reference sequence.
+#' @param sgrap The graph.
+#' @param toEx The traversal set in question.
+#' @param travInd The index of the traversal set.
+#' @return The variants for that traversal through the graph. Three parallel vectors: the first is the location in the reference, the second is the operation type (1 for substitution, 2 for insertion, 3 for deletion), and the third is the relevant character/sequence (is garbage for deletion).
+expandTraversalGraphDifferences <- function(refRS, sgrap, toEx, travInd) {
+    .Call('_MMDIT_expandTraversalGraphDifferences', PACKAGE = 'MMDIT', refRS, sgrap, toEx, travInd)
+}
+
 #' Global alignment of 2 strings
 #'
 #' This performs global pairwise alignment between a pair of sequences.
@@ -93,14 +218,21 @@ ksw2_gg_align <- function(Tseq, Qseq, opPos, ops, sc_mch = 1L, sc_mis = -2L, gap
 
 #' Computes a string from a difference encoding
 #'
-#' This takes the output from: ksw2_gg_align_df(Tseq, Qseq, ... ) (or other)
-#' and the reference (Tseq)
-#' and uses it to re-create Qseq.
-#' The main advantage of this approach is that particular types
-#' of mutations can be filtered, as well as variants that fall in
-#' particular regions.
+#' This takes a difference encoding
+#' (position, 1-based index, the type of event (sub, insert, delete), and the base change)
+#' and constructs a string based on that difference encoding. All encodings are vectorized. The
+#' positions are positions in the Tseq (reference).
+#' The events need to be ordered by position then type (mismatches need to be first, really)
+#' checks on mutually exclusive events are not made.
+#'
+#' insertions at position i are assumed to occur between positions i and i+1
+#' insertions prior to the first base are allowed (position ==0)
+#'
+#' This was originally designed to work with: ksw2_gg_align_df
+#' but that is no longer supported (the indexing of the SNPs has changed)
+#'
 #' @param Tseq (the target sequence; e.g., the reference genome)
-#' @param positions (the positions where the sequence differences are)
+#' @param positions (the positions where the sequence differences are, 1 based indexing)
 #' @param types (the types of events (0,1,2 for mismatch, deletions and insertions)
 #' @param events (the nucleotides involved with the event)
 #' @param initBuff (guess as to the final size of the query sequence. Overestimating is better than under)
