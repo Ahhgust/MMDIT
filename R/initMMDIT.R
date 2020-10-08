@@ -185,6 +185,11 @@ makeDB <- function(path, dbFilename, overwrite=FALSE) {
 #'
 #' @export
 loadMMDIT <- function(path=dataDir, dbFilename=dbName) {
+
+  if (path==dataDir) {
+     path<-system.file("extdata", "", package="MMDIT")
+  }
+
   if (dbFilename != "") {
     dbFile <- paste(path, dbFilename, sep="/")
   } else {
@@ -380,8 +385,10 @@ getSeqdiffCodes <- function() {
 
 
 initDB <- function() {
-# makes the empty database
+  dataDir<-system.file("extdata", "", package="MMDIT")
+
   db <- makeDB(dataDir, dbName, overwrite=TRUE )
+
 # add the reference genome (can be only 1)
   loadReferenceGenome(db, paste(dataDir, refGenome, sep="/") )
 # add amplicons for the precision ID panel
@@ -922,6 +929,27 @@ addKnownHaplotypes <- function(db, empopFile) {
               position=Pos,
               event=Type,
               basecall=Allele) -> toAdd
+
+  # check for mutually exclusive allele calls
+  # same person, position
+  # insertions are their own bird (position is really the position between this and the next)
+  toAdd %>%
+      dplyr::group_by(sampleid, position, event=="I") %>%
+      dplyr::summarize(N=n()) %>%
+    dplyr::filter(N>1) %>%
+    dplyr::ungroup() -> mistakes
+
+  if (nrow(mistakes)>0) {
+    warning(paste("Some individuals have point heteroplasmies. That is not allowed!\n", paste(unique(mistakes$sampleid))))
+  }
+
+  # pick an arbitrary allele call.
+  toAdd %>%
+    dplyr::mutate(IsInsertion=event=="I") %>%
+    dplyr::group_by(sampleid, position, IsInsertion) %>%
+      dplyr::summarize(basecall=basecall[[1]], event=event[[1]]) %>%
+      dplyr::ungroup() %>%
+    dplyr::select(-IsInsertion) -> toAdd
 
   # add the individuals to the DB
   DBI::dbWriteTable(db, "full_mito_diffseqs", toAdd, append=TRUE)
