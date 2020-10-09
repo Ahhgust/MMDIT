@@ -176,7 +176,7 @@ estimateLog10LikelihoodTheta <- function(allelesObserved, allelesThatExplain,the
   tibble::tibble(Alleles=allelesThatExplain) %>%
     dplyr::left_join(alleleFreqs,
                      by="Alleles") %>%
-    dplyr::pull(freq) ->> Hi
+    dplyr::pull(freq) -> Hi
 
   xvec <- as.integer( allelesThatExplain %in% allelesObserved)
 
@@ -231,10 +231,19 @@ testLR <- function() {
 }
 
 
-testRMNE <- function() {
-  db <- loadMMDIT()
 
-  pops <- c("AM", "EU")
+#' 2 person mixture simulations
+#'
+#' This simulates 2-person mixtures from the populations (pops) specified
+#' and it creates a data frame with summary statistics on said mixtures.
+#' RMNE type statistics are returned, as well as RMP/LR statistics (or the basis thereof)
+#'
+#' @param db database handle
+#' @param pops population groups to use.
+#' @param seed sets the seed in the random number generator
+#' @param nMixes the number of simulations to do
+twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
+
   getMitoGenomes(db, pop=pops) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
@@ -254,16 +263,9 @@ testRMNE <- function() {
 
   getMtgenomeSequence(db, double=FALSE) -> rcrs
 
-#  ref <- "AAT"
- # vgraph <- makeVariantGraph(ref, c(0, 0, 2, 2), c(1,1, 3,3), c("", "AA", "G", "C"))
-
-#  traverseSequencesGraph(vgraph, c("AG", "AAG", "AAAG", "AAAC"), 0)->travs
-#  lapply(travs, getTraversalEditDistances)
-
   peeps <- unique(genomes$sampleid)
 
-  nMixes <- 10000
-  set.seed(1)
+  set.seed(seed)
 
   tibble::tibble(
     P1=sample(peeps, nMixes),
@@ -274,8 +276,7 @@ testRMNE <- function() {
     ) %>%
     dplyr::filter(P1 != P2) -> peepPairs
 
- # for(i in 1:nMixes) {
-  for(i in 6370:6370) {
+  for(i in 1:nMixes) {
 
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]])
 
@@ -313,7 +314,7 @@ testRMNE <- function() {
 
 
     if (all(foo$Alleles!="?")) {
-      foo %>% arrange(pos0, position, Alleles) -> foo
+      foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
       vgraph <- makeVariantGraph(rcrs,foo$pos0, foo$position, foo$Alleles)
 
       travs <- traverseSequencesGraph(vgraph, genCount$sequence, 0)
@@ -324,72 +325,35 @@ testRMNE <- function() {
       which( sapply(eds, function(x) length(x)>0, simplify=TRUE) ) -> whodun
  #     peepPairs$Whodun[[i]] <- paste(genomes$sampleid[whodun], collapse=",")
 
-      filter(genomes, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]]) %>%
-        pull(n) %>% sum() -> peepPairs$NMatch[[i]]
+      dplyr::filter(genomes, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]]) %>%
+        dplyr::pull(n) %>% sum() -> peepPairs$NMatch[[i]]
       peepPairs$Ndun[[i]] <- length( whodun )
 
     }
 
   }
 
-  inner_join(peepPairs,
-             select(genomes, sampleid, n, sequence),
+  dplyr::inner_join(peepPairs,
+                    dplyr::select(genomes, sampleid, n, sequence),
              by=c("P1"="sampleid")) %>%
-    rename(P1n=n, S1=sequence
+    dplyr::rename(P1n=n, S1=sequence
            ) %>%
-    inner_join(
-               select(genomes, sampleid, n, sequence),
+    dplyr::inner_join(
+      dplyr::select(genomes, sampleid, n, sequence),
                by=c("P2"="sampleid")) %>%
-    rename(P2n=n, S2=sequence) %>%
-    mutate(NIndThatExplain=P1n*P2n) -> peepPairs
+    dplyr::rename(P2n=n, S2=sequence) %>%
+    dplyr::mutate(NIndThatExplain=P1n*P2n) -> peepPairs
 
 
 
-  #select(peepPairs, -S1, -S2) %>%
-   # write_tsv("mixtureInterpret.tsv")
 
   # levenshtein distance
-  map2(peepPairs$S1, peepPairs$S2, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists
+  purrr::map2(peepPairs$S1, peepPairs$S2, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists
 
   peepPairs$DistBetween <- pairwiseDists
 
-  #select(peepPairs, -S1, -S2) %>%
-   # write_tsv("mixtureInterpret.100SS.tsv")
-
-
+  return(peepPairs)
 }
-
-
-
-test2 <- function() {
-
-  ref <- "AAAA"
-
-  # insertion of an A
-  # and an A->T
-
-  # consistent strings:
-  strings <- c(
-    "AAAA",
-    "AAACCA"
-    )
-
-  # as SNPs (A insertion, A->T SNP; both alleles found)
-  ally <- tibble::tibble(
-    Start = c(3, 3),
-    Stop=   c(3, 3),
-    Alleles=c("CC", ""))
-
-  gr <- makeVariantGraph(ref, ally$Start, ally$Stop, ally$Alleles)
-
-  travs <- traverseSequencesGraph(gr, strings, 0)
-
-  (explainy2 <- findExplainingIndividuals(gr, travs, 2, 0))
- # (explainy1 <- findExplainingIndividuals(gr, travs, 1, 0))
-
-
-}
-
 
 
 

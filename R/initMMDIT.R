@@ -1012,7 +1012,6 @@ estimateLogLikelihood <- function(allelesObserved, allelesThatExplain, databaseA
                          ),
                        Estimator='Theta corrected'
       ) -> ret
-
   }
 
   return(ret)

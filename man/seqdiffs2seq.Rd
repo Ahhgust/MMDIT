@@ -20,12 +20,15 @@ seqdiffs2seq(Tseq, positions, types, events, initBuff = -1L)
 \description{
 This takes a difference encoding
 (position, 1-based index, the type of event (sub, insert, delete), and the base change)
-and constructs a string based on that difference encoding.
+and constructs a string based on that difference encoding. All encodings are vectorized. The
+positions are positions in the Tseq (reference).
+The events need to be ordered by position then type (mismatches need to be first, really)
+checks on mutually exclusive events are not made.
 }
 \details{
 insertions at position i are assumed to occur between positions i and i+1
 insertions prior to the first base are allowed (position ==0)
 
-This was originall designed to work with: ksw2_gg_align_df
+This was originally designed to work with: ksw2_gg_align_df
 but that is no longer supported (the indexing of the SNPs has changed)
 }
