@@ -259,7 +259,7 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
   genomes %>%
     dplyr::group_by(sequence) %>%
-    dplyr::count() %>% ungroup() -> genCount
+    dplyr::count() %>% dplyr::ungroup() -> genCount
 
   # decorate each genome with it's rarity (count)
   genomes %>%
@@ -308,17 +308,17 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
                   Nrow == 1 & Event == "I" ~ paste("", basecall[[1]], sep=","),
                   Nrow == 1 & Event == "D" ~ paste("", RefAllele[[1]], sep=","),
                   Nrow == 1 & Event == "X" ~ paste(basecall[[1]], RefAllele[[1]], sep=","),
-                  Oevent == "I" & Event == "I" ~ paste( unique(basecall), sep=","),
+                  Oevent == "I" & Event == "I" ~ paste( unique(basecall), collapse=","),
                   Oevent == "D" & Event == "D" ~ "",
-                  Oevent == "X" & Event == "X" ~ paste( unique(basecall), sep=","),
-                  Oevent == "D" & Event == "X" ~ paste( unique(basecall), sep=","), # still works; D is ""
-                  Oevent == "X" & Event == "D" ~ paste( unique(basecall), sep=","), # still works; D is ""
+                  Oevent == "X" & Event == "X" ~ paste( unique(basecall), collapse=","),
+                  Oevent == "D" & Event == "X" ~ paste( unique(basecall), collapse=","), # still works; D is ""
+                  Oevent == "X" & Event == "D" ~ paste( unique(basecall), collapse=","), # still works; D is ""
                   TRUE ~ "?"
                 ),
                 .groups='keep'
       ) %>%
       tidyr::separate_rows(Alleles, sep=",") %>%
-      mutate(pos0=
+      dplyr::mutate(pos0=
                ifelse(Event=="I",position, position-1)) -> foo
 
 
@@ -332,7 +332,6 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
       sapply(travs, getTraversalEditDistances, simplify=TRUE) -> eds
       which( sapply(eds, function(x) length(x)>0, simplify=TRUE) ) -> whodun
- #     peepPairs$Whodun[[i]] <- paste(genomes$sampleid[whodun], collapse=",")
 
       dplyr::filter(genomes, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]]) %>%
         dplyr::pull(n) %>% sum() -> peepPairs$NMatch[[i]]
