@@ -6,12 +6,15 @@
 #' and it computes an upper-bound. It's a friendly
 #' wrapper for fst_buckleton
 #'
+#' @importFrom magrittr %>%
+#'
 #' @param alleles strings ; alleles (haplotypes);  1 row per chromosome sampled
 #' @param populations strings ; same length as alleles (parallel array); population label associated with said haplotype
 #' @param quantile ; [0,1] ; what quantile in the Fst distribution would you like?
 #' @param nJack ; non-negative integer ; number of leave-one-out jackknifes taken
 #' @param approximate ; boolean ; whether or not allele frequencies (approximate=TRUE) or site hetero/homozygosities (FALSE) should be used
 #'
+#' @export
 estimateTheta <- function(alleles, populations, quantile=0.95, nJack=0, approximate=FALSE) {
 
 
@@ -68,6 +71,7 @@ clopperHelper <- function(s, tot, quantile) {
 #' @param populationCounts vector of integers ; the number of times each allele (allelesInPopulation) is found; default: all weights are 1
 #' @param correctionQuantile real number; the quantile used in the Clopper and Pearson correction (binomial). If <= 0, the frequency estimate is used.
 #'
+#' @export
 estimateLog10LikelihoodNaive <- function(allelesThatExplain, allelesInPopulation, populationCounts=NULL, correctionQuantile=0.95) {
 
 
@@ -151,6 +155,8 @@ estimateLog10LikelihoodNaive <- function(allelesThatExplain, allelesInPopulation
 #' @param theta theta-correction (Fst, taken from fst_buckleton)
 #' @param allelesInPopulation a vector of alleles sampled from the population (also from database, but may in practice come from a different sub-population)
 #' @param populationCounts a vector of integer weights (parallel to allelesInPopulation)
+#'
+#' @export
 estimateLog10LikelihoodTheta <- function(allelesObserved, allelesThatExplain,theta, allelesInPopulation, populationCounts=NULL) {
 
   nUnknown <- length(allelesThatExplain)
@@ -242,6 +248,9 @@ testLR <- function() {
 #' @param pops population groups to use.
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
+#'
+#'
+#' @export
 twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
   getMitoGenomes(db, pop=pops) -> genomes
