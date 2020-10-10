@@ -285,6 +285,8 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     ) %>%
     dplyr::filter(P1 != P2) -> peepPairs
 
+  nMixes <- nrow(peepPairs) # adjust number of rows...
+
   for(i in 1:nMixes) {
 
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]])
@@ -361,6 +363,186 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
   peepPairs$DistBetween <- pairwiseDists
 
   return(peepPairs)
+}
+
+
+#' 3 person mixture simulations
+#'
+#' This simulates 3-person mixtures from the populations (pops) specified
+#' and it creates a data frame with summary statistics on said mixtures.
+#' RMNE type statistics are returned, as well as RMP/LR statistics (or the basis thereof)
+#'
+#' @param db database handle
+#' @param pops population groups to use.
+#' @param seed sets the seed in the random number generator
+#' @param nMixes the number of simulations to do
+#'
+#'
+#' @export
+threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
+
+  getMitoGenomes(db, pop=pops) -> genomes
+  genomes$sampleid <- as.character(genomes$sampleid)
+
+
+  genomes %>%
+    dplyr::group_by(sequence) %>%
+    dplyr::count() %>% dplyr::ungroup() -> genCount
+
+  # decorate each genome with it's rarity (count)
+  genomes %>%
+    dplyr::left_join(genCount,
+                     by="sequence") -> genomes
+
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE)
+
+  diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
+
+  getMtgenomeSequence(db, double=FALSE) -> rcrs
+
+  peeps <- unique(genomes$sampleid)
+
+  set.seed(seed)
+
+  tibble::tibble(
+    P1=sample(peeps, nMixes),
+    P2=sample(peeps, nMixes),
+    P3=sample(peeps, nMixes),
+    Ndun=-1,
+    NMatch=-1,
+    NExplain=-1
+  ) %>%
+    dplyr::filter(P1 != P2) %>%
+    dplyr::filter(P1 != P3) %>%
+    dplyr::filter(P2 != P3) -> peepPairs
+
+  nMixes <- nrow(peepPairs) # adjust number of rows...
+
+  for(i in 1:nMixes) {
+
+    pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]] | sampleid == peepPairs$P3[[i]])
+
+    posits <- sort( unique(pairy$position) )
+
+    tibble::tibble(
+      position=posits,
+      RefAllele=stringr::str_sub(rcrs, posits, posits)) -> refAlleles
+
+    dplyr::inner_join(pairy,
+                      refAlleles,
+                      by="position") %>%
+      dplyr::filter(event=='X') %>%
+      dplyr::arrange(position,event) %>%
+      dplyr::group_by(position) %>%
+      dplyr::summarize(NeventTypes=dplyr::n_distinct(event),
+                       Event=event[[1]],
+                       Nrow=dplyr::n(),
+                       Oevent= event[[ Nrow ]],
+                       OOindex =ifelse( Nrow==3, 2, 1),
+                       OOevent= event[[ OOindex ]],
+                       Alleles=dplyr::case_when(
+                         # only 1 event in the 3 people; fill in the reference allele as needed
+                         Nrow == 1 & Event == "I" ~ paste("", basecall[[1]], sep=","),
+                         Nrow == 1 & Event == "D" ~ paste("", RefAllele[[1]], sep=","),
+                         Nrow == 1 & Event == "X" ~ paste(basecall[[1]], RefAllele[[1]], sep=","),
+
+                         # 2 events; 1 needs to be the reference. 2 indel cases
+                         Nrow == 2 & Oevent == "I" & Event == "I" ~ paste( unique(c(basecall, "", recursive=TRUE)), collapse=","),
+                         Nrow == 2 & Oevent == "D" & Event == "D" ~ paste("", RefAllele[[1]], sep=","),
+                         # mismatch and/or deletion
+                         Nrow == 2 & Oevent %in% c("X", "D") & Event %in% c("X", "D") ~ paste(  unique(c(basecall, "", recursive=TRUE)), collapse=","),
+
+                         # 3 events at the same location; no reference alleles
+                         Nrow == 3 & OOevent %in% c("X", "D") & Oevent %in% c("X", "D") & Event %in% c("X", "D") ~ paste( unique(basecall), collapse=","), # delete/mismatch case
+                         Nrow == 3 & OOevent == "I" & Oevent == "I" & Event == "I" ~ paste( unique(basecall), collapse=","), # all insertion case.
+                         TRUE ~ "?"
+                       ),
+                       .groups='keep'
+      ) %>%
+      tidyr::separate_rows(Alleles, sep=",") %>%
+      dplyr::mutate(pos0=
+                      ifelse(Event=="I",position, position-1)) -> foo
+
+
+    if (all(foo$Alleles!="?")) {
+      foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
+      vgraph <- makeVariantGraph(rcrs,foo$pos0, foo$position, foo$Alleles)
+
+      travs <- traverseSequencesGraph(vgraph, genCount$sequence, 0)
+      explainy <- findExplainingIndividuals(vgraph, travs, 3, 0)
+      peepPairs$NExplain[[i]] <- length(explainy)
+
+      sapply(travs, getTraversalEditDistances, simplify=TRUE) -> eds
+      which( sapply(eds, function(x) length(x)>0, simplify=TRUE) ) -> whodun
+
+      dplyr::filter(genomes, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]]| sampleid == peepPairs$P3[[i]]) %>%
+        dplyr::pull(n) %>% sum() -> peepPairs$NMatch[[i]]
+      peepPairs$Ndun[[i]] <- length( whodun )
+
+     # genCount[whodun,] %>% dplyr::inner_join(genomes, by='sequence') %>% dplyr::pull(sampleid)
+
+    }
+
+  }
+
+  dplyr::inner_join(peepPairs,
+                    dplyr::select(genomes, sampleid, n, sequence),
+                    by=c("P1"="sampleid")) %>%
+    dplyr::rename(P1n=n, S1=sequence
+    ) %>%
+    dplyr::inner_join(
+      dplyr::select(genomes, sampleid, n, sequence),
+      by=c("P2"="sampleid")) %>%
+    dplyr::rename(P2n=n, S2=sequence) %>%
+    dplyr::inner_join(
+      dplyr::select(genomes, sampleid, n, sequence),
+      by=c("P3"="sampleid")) %>%
+    dplyr::rename(P3n=n, S3=sequence) %>%
+    dplyr::mutate(NIndThatExplain=P1n*P2n*P3n) -> peepPairs
+
+
+  # levenshtein distance
+  purrr::map2(peepPairs$S1, peepPairs$S2, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists12
+  # levenshtein distance
+  purrr::map2(peepPairs$S1, peepPairs$S3, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists13
+  purrr::map2(peepPairs$S2, peepPairs$S3, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists23
+
+
+  peepPairs$DistBetween12 <- pairwiseDists12
+  peepPairs$DistBetween13 <- pairwiseDists13
+  peepPairs$DistBetween23 <- pairwiseDists23
+
+
+  return(peepPairs)
+}
+
+test <- function() {
+
+  ref <- "AAAAA"
+
+  # insertion of an A
+  # and an A->T
+  # adjacent to each other
+
+  # consistent strings:
+  strings <- c(
+    "AATAC",
+    "AAAA",
+    "AAAAA")
+
+  # as SNPs (A insertion, A->T SNP; both alleles found)
+  ally <- tibble::tibble(
+    Start = c(2,2,4,4,4),
+    Stop=   c(3,3,5,5,5),
+    Alleles=c("A", "T", "", "C", "A"))
+
+  gr <- makeVariantGraph(ref, ally$Start, ally$Stop, ally$Alleles)
+
+  travs <- traverseSequencesGraph(gr, strings, 0)
+
+  (explainy <- findExplainingIndividuals(gr, travs, 3, 0))
+
+
 }
 
 
