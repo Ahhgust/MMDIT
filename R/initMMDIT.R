@@ -526,6 +526,7 @@ getMtgenomeSequence <- function(db, double=TRUE) {
 #' @param pop the population requested (defaults to all). vectorized populations okay
 #' @param ignoreIndels strips out indel events (default FALSE)
 #' @param blk exclusion list of sites to filter out!
+#'
 #' @export
 getMitoGenomes <- function(db, pop='%', ignoreIndels=FALSE, blk=c()) {
 

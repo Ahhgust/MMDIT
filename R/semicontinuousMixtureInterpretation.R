@@ -381,7 +381,7 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 #' @export
 threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
-  getMitoGenomes(db, pop=pops) -> genomes
+  getMitoGenomes(db, pop=pops, ignoreIndels=TRUE) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
 
@@ -394,7 +394,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     dplyr::left_join(genCount,
                      by="sequence") -> genomes
 
-  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE)
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=TRUE)
 
   diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
 
@@ -431,7 +431,6 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     dplyr::inner_join(pairy,
                       refAlleles,
                       by="position") %>%
-      dplyr::filter(event=='X') %>%
       dplyr::arrange(position,event) %>%
       dplyr::group_by(position) %>%
       dplyr::summarize(NeventTypes=dplyr::n_distinct(event),
