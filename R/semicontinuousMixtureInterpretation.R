@@ -381,7 +381,7 @@ twopersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 #' @export
 threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
-  getMitoGenomes(db, pop=pops, ignoreIndels=TRUE) -> genomes
+  getMitoGenomes(db, pop=pops, ignoreIndels=FALSE) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
 
@@ -394,7 +394,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     dplyr::left_join(genCount,
                      by="sequence") -> genomes
 
-  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=TRUE)
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=FALSE)
 
   diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
 
@@ -418,7 +418,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
   nMixes <- nrow(peepPairs) # adjust number of rows...
 
-  for(i in 1:nMixes) {
+  for(i in 1:10) {
 
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]] | sampleid == peepPairs$P3[[i]])
 
@@ -449,7 +449,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
                          Nrow == 2 & Oevent == "I" & Event == "I" ~ paste( unique(c(basecall, "", recursive=TRUE)), collapse=","),
                          Nrow == 2 & Oevent == "D" & Event == "D" ~ paste("", RefAllele[[1]], sep=","),
                          # mismatch and/or deletion
-                         Nrow == 2 & Oevent %in% c("X", "D") & Event %in% c("X", "D") ~ paste(  unique(c(basecall, "", recursive=TRUE)), collapse=","),
+                         Nrow == 2 & Oevent %in% c("X", "D") & Event %in% c("X", "D") ~ paste(  unique(c(basecall,  RefAllele[[1]], recursive=TRUE)), collapse=","),
 
                          # 3 events at the same location; no reference alleles
                          Nrow == 3 & OOevent %in% c("X", "D") & Oevent %in% c("X", "D") & Event %in% c("X", "D") ~ paste( unique(basecall), collapse=","), # delete/mismatch case
@@ -466,7 +466,6 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
       vgraph <- makeVariantGraph(rcrs,foo$pos0, foo$position, foo$Alleles)
-
       travs <- traverseSequencesGraph(vgraph, genCount$sequence, 0)
       explainy <- findExplainingIndividuals(vgraph, travs, 3, 0)
       peepPairs$NExplain[[i]] <- length(explainy)
