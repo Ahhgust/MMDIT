@@ -511,7 +511,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
   peepPairs$DistBetween23 <- pairwiseDists23
 
 
-  return(peepPairs)
+  return(dplyr::select(peepPairs, -S3))
 }
 
 test <- function() {
