@@ -418,7 +418,7 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
   nMixes <- nrow(peepPairs) # adjust number of rows...
 
-  for(i in 1:10) {
+  for(i in 1:nMixes) {
 
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]] | sampleid == peepPairs$P3[[i]])
 
