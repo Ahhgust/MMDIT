@@ -1,0 +1,35 @@
+Package: MMDIT
+Type: Package
+Title: Mitochondrial mixture project
+Version: 0.1.0
+Authors@R: c(
+    person("August", "Woerner", email = "august.woerner@unthsc.edu", role = c("aut", "cre")),
+    person("Utpal", "Smart", email = "utpal.smart@unthsc.edu", role = c("aut")),
+    person("Sammed", "Mandape", email = "sammed.mandape@unthsc.edu", role = c("aut")),
+    person("Benjamin", "Crysup", email = "benjamin.crysup@unthsc.edu", role = c("aut"))
+    )
+Description: This provides a suite of utilities to analyze mito mixtures.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+LinkingTo: Rcpp
+Imports: 
+    Rcpp,
+    DBI,
+    RSQLite,
+    seqinr,
+    Haplotypical,
+    devtools,
+    tidyr,
+    utils,
+    dplyr,
+    tibble,
+    readr,
+    magrittr,
+    PropCIs,
+    ggplot2,
+    stringdist,
+    stringr,
+    DEploid,
+    purrr
+RoxygenNote: 7.1.0
