@@ -4,7 +4,7 @@
 \alias{twopersonMix}
 \title{2 person mixture simulations}
 \usage{
-twopersonMix(db, pops = c("AM", "EU"), seed = 1, nMixes = 1000)
+twopersonMix(db, pops = c("EU"), seed = 1, nMixes = 1000)
 }
 \arguments{
 \item{db}{database handle}
