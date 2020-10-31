@@ -111,6 +111,7 @@ preprocessMitoGenomes <- function(genomes, knownHaps=c()) {
 #'
 #' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
 #' @param genCount the second data frame from  MMDIT::preprocessMitoGenomes
+#' @param rcrs character string. the mitochondrial genome sequence (whole thing)
 #' @param pos0 0-based coordinate of alleles
 #' @param pos1 1-based coordinate of alleles
 #' @param alleles the alleles present in the interval specified
@@ -120,7 +121,7 @@ preprocessMitoGenomes <- function(genomes, knownHaps=c()) {
 #' @param tolerance should be 0. this permits fuzzy matching between the haplotypes and the mixture. 0 == no fuzz
 #'
 #' @export
-semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
+semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
 
   # combine database alleles with known alleles (if they exist)
   allSeqs <- c(genCount$sequence, knownHaps, recursive=TRUE)
@@ -566,7 +567,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
       # semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
-      inter <-semicontinuousWrapper(genomes, genCount, foo$pos0, foo$position, foo$Alleles, knownHaps=c(), nInMix=2, clopperQuantile = 0.95, tolerance=0)
+      inter <-semicontinuousWrapper(genomes, genCount, rcrs, foo$pos0, foo$position, foo$Alleles, knownHaps=c(), nInMix=2, clopperQuantile = 0.95, tolerance=0)
       rmneStats <- inter[[1]]
       lrStats <- inter[[2]]
       peepPairs$RMNE[[i]] <- rmneStats$LogRMNEUB[[1]]
