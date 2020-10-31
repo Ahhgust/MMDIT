@@ -726,28 +726,23 @@ twopersonMixOriginal <- function(db, pops=c("EU", "AM"), seed=1,   nMixes=1000) 
 #'
 #'
 #' @export
-threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
+threepersonMix <- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
 
-  getMitoGenomes(db, pop=pops, ignoreIndels=FALSE) -> genomes
+  getMitoGenomes(db, pop=pops) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
+  foo <- preprocessMitoGenomes(genomes)
+  genomes <- foo[[1]]
+  genCount <- foo[[2]]
 
-  genomes %>%
-    dplyr::group_by(sequence) %>%
-    dplyr::count() %>% dplyr::ungroup() -> genCount
 
-  # decorate each genome with it's rarity (count)
-  genomes %>%
-    dplyr::left_join(genCount,
-                     by="sequence") -> genomes
-
-  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=FALSE)
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE)
 
   diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
 
   getMtgenomeSequence(db, double=FALSE) -> rcrs
 
-  peeps <- unique(genomes$sampleid)
+  peeps <- dplyr::filter(genomes, pop==pops[[1]]) %>% dplyr::pull(sampleid)
 
   set.seed(seed)
 
@@ -755,9 +750,11 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
     P1=sample(peeps, nMixes),
     P2=sample(peeps, nMixes),
     P3=sample(peeps, nMixes),
-    Ndun=-1,
+    RMNE=-1,
     NMatch=-1,
-    NExplain=-1
+    NExplain=-1,
+    NComboExplain=-1,
+    LogLikelihood=-1
   ) %>%
     dplyr::filter(P1 != P2) %>%
     dplyr::filter(P1 != P3) %>%
@@ -812,53 +809,24 @@ threepersonMix <- function(db, pops=c("AM", "EU"), seed=1,   nMixes=1000) {
 
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
-      vgraph <- makeVariantGraph(rcrs,foo$pos0, foo$position, foo$Alleles)
-      travs <- traverseSequencesGraph(vgraph, genCount$sequence, 0)
-      explainy <- findExplainingIndividuals(vgraph, travs, 3, 0)
-      peepPairs$NExplain[[i]] <- length(explainy)
-
-      sapply(travs, getTraversalEditDistances, simplify=TRUE) -> eds
-      which( sapply(eds, function(x) length(x)>0, simplify=TRUE) ) -> whodun
-
-      dplyr::filter(genomes, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]]| sampleid == peepPairs$P3[[i]]) %>%
-        dplyr::pull(n) %>% sum() -> peepPairs$NMatch[[i]]
-      peepPairs$Ndun[[i]] <- length( whodun )
-
-     # genCount[whodun,] %>% dplyr::inner_join(genomes, by='sequence') %>% dplyr::pull(sampleid)
+      # semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
+      inter <-semicontinuousWrapper(genomes, genCount, rcrs, foo$pos0, foo$position, foo$Alleles, knownHaps=c(), nInMix=2, clopperQuantile = 0.95, tolerance=0)
+      rmneStats <- inter[[1]]
+      lrStats <- inter[[2]]
+      peepPairs$RMNE[[i]] <- rmneStats$LogRMNEUB[[1]]
+      peepPairs$NMatch[[i]] <- rmneStats$Count[[1]]
+      peepPairs$NExplain[[i]] <- lrStats$NExplain[[1]]
+      peepPairs$NComboExplain[[i]] <- lrStats$NCombinationsThatExplain[[1]]
+      peepPairs$LogLikelihood[[i]] <- lrStats$LogLikelihood_GBC[[1]]
 
     }
 
   }
 
-  dplyr::inner_join(peepPairs,
-                    dplyr::select(genomes, sampleid, n, sequence),
-                    by=c("P1"="sampleid")) %>%
-    dplyr::rename(P1n=n, S1=sequence
-    ) %>%
-    dplyr::inner_join(
-      dplyr::select(genomes, sampleid, n, sequence),
-      by=c("P2"="sampleid")) %>%
-    dplyr::rename(P2n=n, S2=sequence) %>%
-    dplyr::inner_join(
-      dplyr::select(genomes, sampleid, n, sequence),
-      by=c("P3"="sampleid")) %>%
-    dplyr::rename(P3n=n, S3=sequence) %>%
-    dplyr::mutate(NIndThatExplain=P1n*P2n*P3n) -> peepPairs
 
 
-  # levenshtein distance
-  purrr::map2(peepPairs$S1, peepPairs$S2, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists12
-  # levenshtein distance
-  purrr::map2(peepPairs$S1, peepPairs$S3, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists13
-  purrr::map2(peepPairs$S2, peepPairs$S3, function(x,y) utils::adist(x,y)[[1]]) %>% unlist() -> pairwiseDists23
 
-
-  peepPairs$DistBetween12 <- pairwiseDists12
-  peepPairs$DistBetween13 <- pairwiseDists13
-  peepPairs$DistBetween23 <- pairwiseDists23
-
-
-  return(dplyr::select(peepPairs, -S3))
+  return(peepPairs)
 }
 
 test <- function() {
