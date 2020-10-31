@@ -807,6 +807,7 @@ threepersonMix <- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
                       ifelse(Event=="I",position, position-1)) -> foo
 
 
+
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
       # semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
