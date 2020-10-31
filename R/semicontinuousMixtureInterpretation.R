@@ -811,7 +811,8 @@ threepersonMix <- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
       # semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
-      inter <-semicontinuousWrapper(genomes, genCount, rcrs, foo$pos0, foo$position, foo$Alleles, knownHaps=c(), nInMix=3, clopperQuantile = 0.95, tolerance=0)
+      inter <-semicontinuousWrapper(genomes, genCount, rcrs, foo$pos0, foo$position, foo$Alleles, knownHaps=c(),
+                                    nInMix=3, clopperQuantile = 0.95, tolerance=0)
       rmneStats <- inter[[1]]
       lrStats <- inter[[2]]
       peepPairs$RMNE[[i]] <- rmneStats$LogRMNEUB[[1]]
