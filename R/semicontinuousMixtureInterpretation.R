@@ -494,9 +494,9 @@ testLR <- function() {
 #'
 #'
 #' @export
-twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
+twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALSE) {
 
-  getMitoGenomes(db, pop=pops) -> genomes
+  getMitoGenomes(db, pop=pops, ignoreIndels=ignoreIndels) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
   foo <- preprocessMitoGenomes(genomes)
@@ -504,7 +504,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
   genCount <- foo[[2]]
 
 
-  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE)
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=ignoreIndels)
 
   diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
 
@@ -512,7 +512,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
 
   peeps <- dplyr::filter(genomes, pop==pops[[1]]) %>% dplyr::pull(sampleid)
 
-  set.seed(seed)
+  set.seed(1)
 
   tibble::tibble(
     P1=sample(peeps, nMixes),
@@ -536,6 +536,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
     tibble::tibble(
       position=posits,
       RefAllele=stringr::str_sub(rcrs, posits, posits)) -> refAlleles
+
 
     dplyr::inner_join(pairy,
                       refAlleles,
@@ -593,10 +594,10 @@ twopersonMix<- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
 #' @param pops population groups to use.
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
-#'
+#' @param ignoreIndels when TRUE, insertion/deletions are omitted
 #'
 #' @export
-twopersonMixOriginal <- function(db, pops=c("EU", "AM"), seed=1,   nMixes=1000) {
+twopersonMixOriginal <- function(db, pops=c("EU", "AM"), seed=1, nMixes=1000) {
 
   getMitoGenomes(db, pop=pops) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
@@ -723,12 +724,12 @@ twopersonMixOriginal <- function(db, pops=c("EU", "AM"), seed=1,   nMixes=1000) 
 #' @param pops population groups to use.
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
-#'
+#' @param ignoreIndels when TRUE, insertion/deletions are omitted
 #'
 #' @export
-threepersonMix <- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
+threepersonMix <- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALSE) {
 
-  getMitoGenomes(db, pop=pops) -> genomes
+  getMitoGenomes(db, pop=pops, ignoreIndels=ignoreIndels) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
 
   foo <- preprocessMitoGenomes(genomes)
@@ -736,7 +737,8 @@ threepersonMix <- function(db, pops=c("EU"), seed=1,   nMixes=1000) {
   genCount <- foo[[2]]
 
 
-  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE)
+  diffs <- getSeqdiffs(db, pop=pops, getPopulation=TRUE, ignoreIndels=ignoreIndels)
+
 
   diffs$event <- factor(diffs$event, levels=c("X", "D", "I"))
 
