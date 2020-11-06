@@ -45,21 +45,9 @@ estimateTheta <- function(alleles, populations, quantile=0.95, nJack=0, approxim
 #' @importFrom magrittr %>%
 #'
 #' @param genomes a data frame from MMDIT::getMitoGenomes
-#' @param knownHaps a vector of strings (full mito-genomes; from hypothesized contributors)
 #' @export
-preprocessMitoGenomes <- function(genomes, knownHaps=c()) {
+preprocessMitoGenomes <- function(genomes) {
 
-
-  # make up a quasi-population whose name is "K"
-  # for the "known" haplotypes
-  if (length(knownHaps)>0) {
-    k <- unique(knownHaps)
-    tibble::tibble(
-      sampleid= paste0("K", 1:length(k)),
-      pop="K",
-      sequence=k) %>%
-      dplyr::bind_rows(genomes, .) -> genomes
-  }
 
 
   # unique genomes.
@@ -491,7 +479,7 @@ testLR <- function() {
 #' @param pops population groups to use.
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
-#'
+#' @param ignoreIndels default: FALSE optionally strips out indels
 #'
 #' @export
 twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALSE) {
@@ -528,7 +516,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
   nMixes <- nrow(peepPairs) # adjust number of rows...
 
   for(i in 1:nMixes) {
-
+    print(i)
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]])
 
     posits <- sort( unique(pairy$position) )
@@ -594,7 +582,6 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
 #' @param pops population groups to use.
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
-#' @param ignoreIndels when TRUE, insertion/deletions are omitted
 #'
 #' @export
 twopersonMixOriginal <- function(db, pops=c("EU", "AM"), seed=1, nMixes=1000) {
@@ -765,6 +752,7 @@ threepersonMix <- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=F
   nMixes <- nrow(peepPairs) # adjust number of rows...
 
   for(i in 1:nMixes) {
+    print(i)
 
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]] | sampleid == peepPairs$P3[[i]])
 

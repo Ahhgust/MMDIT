@@ -14,8 +14,6 @@ twopersonMixOriginal(db, pops = c("EU", "AM"), seed = 1, nMixes = 1000)
 \item{seed}{sets the seed in the random number generator}
 
 \item{nMixes}{the number of simulations to do}
-
-\item{ignoreIndels}{when TRUE, insertion/deletions are omitted}
 }
 \description{
 This simulates 2-person mixtures from the populations (pops) specified

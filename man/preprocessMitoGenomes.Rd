@@ -4,12 +4,10 @@
 \alias{preprocessMitoGenomes}
 \title{Preprocess mitochondrial genomes}
 \usage{
-preprocessMitoGenomes(genomes, knownHaps = c())
+preprocessMitoGenomes(genomes)
 }
 \arguments{
 \item{genomes}{a data frame from MMDIT::getMitoGenomes}
-
-\item{knownHaps}{a vector of strings (full mito-genomes; from hypothesized contributors)}
 }
 \description{
 This takes the output of: getMitoGenomes
