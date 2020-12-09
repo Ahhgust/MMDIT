@@ -496,7 +496,7 @@ singleSourceRMP <- function(haplotype, genomes,  fst, clopperQuantile=0.95, rep=
 #'
 #'
 #'
-#' @param knownHaps a vector of haplotypes whose rarity is to be assessed (exactly one)
+#' @param knownHaps a vector of haplotypes whose rarity is to be assessed (one or more)
 #' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
 #' @param clopperQuantile the upper-bound confidence interval as per Clopper and Pearson
 #' @param fstQuantile  the quantile (1-tailed upper-bound) on the estimate of FST
