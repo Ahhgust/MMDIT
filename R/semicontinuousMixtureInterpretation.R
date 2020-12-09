@@ -495,10 +495,9 @@ singleSourceRMP <- function(haplotype, genomes,  fst, clopperQuantile=0.95, rep=
 #' Computes the RMP (frequentist and theta-corrected)
 #'
 #'
-#' @importFrom magrittr %>%
 #'
-#' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
 #' @param knownHaps a vector of haplotypes whose rarity is to be assessed (exactly one)
+#' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
 #' @param clopperQuantile the upper-bound confidence interval as per Clopper and Pearson
 #' @param fstQuantile  the quantile (1-tailed upper-bound) on the estimate of FST
 #' @param nJack        the number of leave-one-out jackknife replicates used to estimate the FST quantile
