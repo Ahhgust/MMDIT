@@ -22,6 +22,11 @@ This function takes an empop file containing at least four (mandatory) columns
 and returns a tibble with two columns - SampleID and Variant
 All individuals in the empop file must be single-source, with *no* heteroplasmies
 We recommend taking the major allele in the case of heteroplasmy.
+
+Note: if an individual has no differences to the reference (rCRS)
+it is encoded as having a 73A. This is NOT a variant allele, but
+otherwise the tabular data format cannot easily represent the difference encoding
+(this has no effect on the string-based match statistics)
 }
 \examples{
 \dontrun{

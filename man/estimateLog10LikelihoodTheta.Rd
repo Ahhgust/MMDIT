@@ -13,9 +13,9 @@ estimateLog10LikelihoodTheta(
 )
 }
 \arguments{
-\item{allelesObserved}{vector of alleles observed (empirically)  (not database, may be empty)}
+\item{allelesObserved}{vector of alleles observed (knowns)  (not database, may be empty)}
 
-\item{allelesThatExplain}{vector of alleles that explain the mixture (unknown haplotypes only)}
+\item{allelesThatExplain}{vector of alleles (unknowns haplotypes only)}
 
 \item{theta}{theta-correction (Fst, taken from fst_buckleton)}
 

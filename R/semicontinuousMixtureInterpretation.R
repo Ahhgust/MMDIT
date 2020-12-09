@@ -382,8 +382,8 @@ estimateLog10LikelihoodNaive <- function(allelesThatExplain, allelesInPopulation
 #'
 #' It takes in a set of allelesObserved to be in the mixture (according to the hypothesis)
 #'
-#' @param allelesObserved vector of alleles observed (empirically)  (not database, may be empty)
-#' @param allelesThatExplain vector of alleles that explain the mixture (unknown haplotypes only)
+#' @param allelesObserved vector of alleles observed (knowns)  (not database, may be empty)
+#' @param allelesThatExplain vector of alleles (unknowns haplotypes only)
 #' @param theta theta-correction (Fst, taken from fst_buckleton)
 #' @param allelesInPopulation a vector of alleles sampled from the population (also from database, but may in practice come from a different sub-population)
 #' @param populationCounts a vector of integer weights (parallel to allelesInPopulation)
@@ -435,6 +435,89 @@ estimateLog10LikelihoodTheta <- function(allelesObserved, allelesThatExplain,the
 }
 
 
+#' theta-corrected RMP estimation
+#'
+#' This is a special case of the theta-corrected likelihood estimate.
+#' but it's much faster
+#'
+#' @param haplotypeProbability an estimate of a haplotype's probability (in practice, frequency)
+#' @param fst an estimate of theta.
+#'
+rmpTheta <- function(haplotypeProbability, fst) {
+
+  (fst + (1-fst)*haplotypeProbability)/(1-fst)
+
+}
+
+#' RMPs on one haplotype
+#'
+#' Computes single-source match statistics on a single haplotype
+#' it does so for each population in genomes
+#'
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param haplotype a haplotype whose rarity is to be assessed (exactly one)
+#' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
+#' @param fst estimte of Fst
+#' @param clopperQuantile the upper-bound confidence interval as per Clopper and Pearson
+#' @param rep An extra column (optional) which is blindly added to the data frame. Must be NULL or of length 1
+#'
+#' @export
+singleSourceRMP <- function(haplotype, genomes,  fst, clopperQuantile=0.95, rep=NULL) {
+
+  dplyr::group_by(genomes, pop) %>%
+    dplyr::summarize(
+      # To slow!
+      #log10RMPfrequentist=estimateLog10LikelihoodNaive(haplotype, sequence, correctionQuantile=clopperQuantile),
+      #log10RMPtheta      =estimateLog10LikelihoodTheta(haplotype, haplotype, fst, sequence),
+
+      # carve out a special case for just the RMP
+      NMatches       = sum(haplotype==sequence),
+      RmpFrequentist = clopperHelper(NMatches, dplyr::n(), clopperQuantile),
+      # implicitly add the haplotype to the database
+      RmpTheta       = rmpTheta( (NMatches+1)/(dplyr::n()+1), fst),
+      .groups='keep'
+    ) -> rmps
+
+  rmps$Theta <- fst
+
+  if (!is.null(rep)) {
+    rmps$Rep=rep
+
+  }
+
+  return(rmps)
+}
+
+#' RMPs on multiple haplotypes
+#'
+#' Computes the RMP (frequentist and theta-corrected)
+#'
+#'
+#' @importFrom magrittr %>%
+#'
+#' @param genomes the first data frame from MMDIT::preprocessMitoGenomes
+#' @param knownHaps a vector of haplotypes whose rarity is to be assessed (exactly one)
+#' @param clopperQuantile the upper-bound confidence interval as per Clopper and Pearson
+#' @param fstQuantile  the quantile (1-tailed upper-bound) on the estimate of FST
+#' @param nJack        the number of leave-one-out jackknife replicates used to estimate the FST quantile
+#' @param fstApprox    whether to use allele frequencies (approximate=TRUE) or counts
+#'
+#' @export
+rmpWrapper <- function(knownHaps, genomes, clopperQuantile=0.95, fstQuantile=0.99, nJack=1000, fstApprox=TRUE) {
+
+  if (length(unique(genomes$pop)) < 2) {
+    stop("I need at least two populations selected from the database")
+  }
+
+  fst <- estimateTheta(genomes$sequence, genomes$pop, quantile=fstQuantile, nJack=nJack, approximate=fstApprox)
+
+  dplyr::bind_rows(
+    lapply(knownHaps, singleSourceRMP, genomes, fst[[1]], clopperQuantile),
+    .id="haplotypeid"
+  )
+}
 
 
 doLR <- function(haplotypes, populations, observed, variantGraph, numIndividuals, theta=NULL) {
@@ -500,7 +583,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
 
   peeps <- dplyr::filter(genomes, pop==pops[[1]]) %>% dplyr::pull(sampleid)
 
-  set.seed(1)
+  set.seed(seed)
 
   tibble::tibble(
     P1=sample(peeps, nMixes),

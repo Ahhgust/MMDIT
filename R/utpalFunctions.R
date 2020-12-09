@@ -202,6 +202,12 @@ write_mbop<-function(SampleID, Variant){
 #' and returns a tibble with two columns - SampleID and Variant
 #' All individuals in the empop file must be single-source, with *no* heteroplasmies
 #' We recommend taking the major allele in the case of heteroplasmy.
+#'
+#' Note: if an individual has no differences to the reference (rCRS)
+#' it is encoded as having a 73A. This is NOT a variant allele, but
+#' otherwise the tabular data format cannot easily represent the difference encoding
+#' (this has no effect on the string-based match statistics)
+#'
 #' @export
 #' @importFrom magrittr %>%
 #' @param empopFile An EMPOP file (tab seperated)
@@ -225,11 +231,22 @@ Empop2variant<-function(empopFile, s = 1, ncol2skip=3, guess_max=100){
     dplyr::filter(dplyr::row_number() > ncol2skip) %>% # removing the first 3 columns in the original encoding
     dplyr::ungroup() %>%
     dplyr::select(SampleID, Variant)
-  # empty strings arise as the variant in the case that the individual == rCRS
+
+  allPeeps <- tibble::tibble(SampleID=unique(e$SampleID))
+
+
   # 73A is what the rCRS has, so I'm going to add it in, otherwise, the downstream analyses generate a lot of NAs...
-  # e.g., 73A is what the rCRS has...
-  e <- dplyr::mutate(e,
-              Variant=ifelse(Variant=="", "73A", Variant) )
+  #e <- dplyr::mutate(e,
+   #           Variant=ifelse(Variant=="", "73A", Variant) )
+
+  # two sources of empty strings. One is from Excel adding ""s. yay.
+  # the other is when the individual HAS NO variants.
+  dplyr::left_join(
+    allPeeps, # makes sure that each person is present at least once
+    dplyr::filter(e, Variant != ""), # removes all "" variant calls (empty cells from Excel export)
+    by="SampleID") -> e
+
+  dplyr::mutate(e, Variant=ifelse(is.na(Variant), "73A", Variant)) -> e
 
   return(e)
 }
