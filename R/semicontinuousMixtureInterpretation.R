@@ -107,9 +107,10 @@ preprocessMitoGenomes <- function(genomes) {
 #' @param nInMix integer; the number of distinct haploid sequences present in the mixture
 #' @param clopperQuantile the upper-bound confidence interval as per Clopper and Pearson
 #' @param tolerance should be 0. this permits fuzzy matching between the haplotypes and the mixture. 0 == no fuzz
+#' @param giveExplainy optionally returns the explaining individuals
 #'
 #' @export
-semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
+semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0, giveExplainy=FALSE) {
 
   # combine database alleles with known alleles (if they exist)
   allSeqs <- c(genCount$sequence, knownHaps, recursive=TRUE)
@@ -223,7 +224,6 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
   tidyr::expand_grid(
      pop=unique(genomes$pop),
      SeqID=whodun# note no +1; which returns 1-based indexing
-
      ) %>%
    dplyr::left_join(
      dplyr::select(genomes, pop, SeqID, sequence),
@@ -237,6 +237,18 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
    dplyr::ungroup() %>%
      dplyr::left_join(totalsByPop,
                       by="pop")  -> rmneLongByPop
+
+  # no individual is consistent with the mixture
+  if (nrow(rmneLongByPop)==0) {
+    rmneLongByPop <-
+      dplyr::group_by(genomes, pop) %>%
+      dplyr::summarize(Count=0L,
+                CountExcludingKnown=0L,
+                Tot=sum(n),
+                .groups='keep') %>%
+      dplyr::ungroup()
+
+  }
 
 
   if (length(knownHaps)) {
@@ -261,6 +273,11 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
    rmneLongByPop$LogRMNE_ExcludeKnowns_UB <- log10(
      purrr::map2_dbl(rmneLongByPop$CountExcludingKnown, rmneLongByPop$Tot, clopperHelper, quantile=clopperQuantile)
    )
+
+   if (giveExplainy) {
+     return( list(rmneLongByPop, likelihoods, explainy))
+   }
+
    return( list(rmneLongByPop, likelihoods))
 }
 
@@ -519,37 +536,6 @@ rmpWrapper <- function(knownHaps, genomes, clopperQuantile=0.95, fstQuantile=0.9
 }
 
 
-doLR <- function(haplotypes, populations, observed, variantGraph, numIndividuals, theta=NULL) {
-
-  tibble::tibble(hapsDatabase=haplotypes,
-                 Pops=populations) -> tib
-
-  dplyr::group_by(tib, .data$Pops) %>%
-    dplyr::mutate(
-      trav=traverseSequencesGraph(variantGraph,
-                                  unique( c(.data$hapsDatabase, observed, recursive=TRUE) ),
-                                  0),
-
-   #   explainingIndividuals=findExplainingIndividuals(variantGraph,
-    #                                                  trav,
-     #                                                 numIndividuals, 0),.groups='keep'
-      ) -> mixInterpret
-
-
-}
-
-
-testLR <- function() {
-
-  vgraph <- makeVariantGraph("ACATGA", c(0,0), c(4,4), c("","ACAT"))
-
-  haplotypes <-  c("AGATGA","ACATGA","GA","GGATGA")
-  populations <- rep("A", 4)
-
-  doLR(haplotypes, populations, c(), vgraph, 2) -> foo
-
-}
-
 
 #' 2 person mixture simulations
 #'
@@ -598,7 +584,7 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
   nMixes <- nrow(peepPairs) # adjust number of rows...
 
   for(i in 1:nMixes) {
-    print(i)
+
     pairy <- dplyr::filter(diffs, sampleid == peepPairs$P1[[i]] | sampleid == peepPairs$P2[[i]])
 
     posits <- sort( unique(pairy$position) )
