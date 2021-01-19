@@ -723,7 +723,6 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
         lrStats <- dplyr::filter(lrStats, NKnown==1)
         rmneStats <- tail(rmneStats, 1)
       }
-
       peepPairs$RMNE[[i]] <- rmneStats$LogRMNEUB[[1]]
       peepPairs$NMatch[[i]] <- rmneStats$Count[[1]]
       peepPairs$NExplain[[i]] <- lrStats$NExplain[[1]]
