@@ -4,7 +4,14 @@
 \alias{twopersonMix}
 \title{2 person mixture simulations}
 \usage{
-twopersonMix(db, pops = c("EU"), seed = 1, nMixes = 1000, ignoreIndels = FALSE)
+twopersonMix(
+  db,
+  pops = c("EU"),
+  seed = 1,
+  nMixes = 1000,
+  ignoreIndels = FALSE,
+  nKnown = 0
+)
 }
 \arguments{
 \item{db}{database handle}
@@ -16,6 +23,8 @@ twopersonMix(db, pops = c("EU"), seed = 1, nMixes = 1000, ignoreIndels = FALSE)
 \item{nMixes}{the number of simulations to do}
 
 \item{ignoreIndels}{default: FALSE optionally strips out indels}
+
+\item{nKnown}{the number of known contributors... can only be 0 or 1.}
 }
 \description{
 This simulates 2-person mixtures from the populations (pops) specified

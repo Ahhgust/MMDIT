@@ -632,9 +632,10 @@ rmpWrapper <- function(knownHaps, genomes, clopperQuantile=0.95, fstQuantile=0.9
 #' @param seed sets the seed in the random number generator
 #' @param nMixes the number of simulations to do
 #' @param ignoreIndels default: FALSE optionally strips out indels
+#' @param nKnown the number of known contributors... can only be 0 or 1.
 #'
 #' @export
-twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALSE) {
+twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALSE, nKnown=0) {
 
   getMitoGenomes(db, pop=pops, ignoreIndels=ignoreIndels) -> genomes
   genomes$sampleid <- as.character(genomes$sampleid)
@@ -707,10 +708,20 @@ twopersonMix<- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=FALS
 
     if (all(foo$Alleles!="?")) {
       foo %>% dplyr::arrange(pos0, position, Alleles) -> foo
+
+      knowns <- c()
+      if (nKnown==1) {
+          knowns <- dplyr::filter(genomes, sampleid==peepPairs$P1[[i]]) %>% dplyr::pull(sequence)
+      }
       # semicontinuousWrapper <- function(genomes, genCount, pos0, pos1, alleles, knownHaps=c(), nInMix=2, clopperQuantile=0.95, tolerance=0) {
-      inter <-semicontinuousWrapper(genomes, genCount, rcrs, foo$pos0, foo$position, foo$Alleles, knownHaps=c(), nInMix=2, clopperQuantile = 0.95, tolerance=0)
+      inter <-semicontinuousWrapper(genomes, genCount, rcrs,
+                                    foo$pos0, foo$position, foo$Alleles,
+                                    knownHaps=knowns, nInMix=2, clopperQuantile = 0.95, tolerance=0)
       rmneStats <- inter[[1]]
       lrStats <- inter[[2]]
+      if (nKnown==1) {
+        lrStats <- dplyr::filter(lrStats, NKnown==1)
+      }
       peepPairs$RMNE[[i]] <- rmneStats$LogRMNEUB[[1]]
       peepPairs$NMatch[[i]] <- rmneStats$Count[[1]]
       peepPairs$NExplain[[i]] <- lrStats$NExplain[[1]]
@@ -966,8 +977,6 @@ threepersonMix <- function(db, pops=c("EU"), seed=1, nMixes=1000, ignoreIndels=F
     }
 
   }
-
-
 
 
   return(peepPairs)

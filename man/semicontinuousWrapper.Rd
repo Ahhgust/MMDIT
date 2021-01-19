@@ -14,7 +14,8 @@ semicontinuousWrapper(
   knownHaps = c(),
   nInMix = 2,
   clopperQuantile = 0.95,
-  tolerance = 0
+  tolerance = 0,
+  giveExplainy = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ semicontinuousWrapper(
 \item{clopperQuantile}{the upper-bound confidence interval as per Clopper and Pearson}
 
 \item{tolerance}{should be 0. this permits fuzzy matching between the haplotypes and the mixture. 0 == no fuzz}
+
+\item{giveExplainy}{optionally returns the explaining individuals}
 }
 \description{
 This is an omnibus wrapper for semicontinuous likelihood estimation.
