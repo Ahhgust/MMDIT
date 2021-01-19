@@ -5,6 +5,7 @@
 using namespace Rcpp;
 
 #define NULL_FST -1e6
+// [[Rcpp::plugins(cpp11)]]
 
 typedef std::vector<int> IntVect;
 
