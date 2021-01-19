@@ -125,34 +125,104 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
   # 1-based indexing (b/c in R)
   # this gives a vector of lists; the inner lists enumerate every valid traversal
   sapply(travs, getTraversalEditDistances, simplify=TRUE) -> eds
+
   # and we only care (for the RMNE) which individuals can traverse the graph.
   # in principle length(x) should be 0 or 1, but if the user is sloppy with deletion encodings
   # there can be multiple paths
   which( sapply(eds, function(x) length(x)>0, simplify=TRUE) ) -> whodun
 
-  # population totals
+
+  # sample sizes by population
   totalsByPop <- genomes %>%
     dplyr::group_by(pop) %>%
     dplyr::summarize(Tot=dplyr::n(), .groups='keep') %>%
     dplyr::ungroup()
 
-  if (length(explainy)==0) {
+  # Compute the likelihoods for the common case
+  # ie, the mixture is unexplainable
+  # for 0-nInmix total known individuals
+  # computation is repeated across all populations considered...
+  tidyr::expand_grid(pop=totalsByPop$pop,
+                     NKnown=0:length(knownHaps)) %>%
+    dplyr::left_join(totalsByPop, by='pop') %>%
+    dplyr::mutate(WhichKnown="Not explainable",
+                  NCombinationsThatExplain=0,
+                  NExplain  = 0,
+                  Divisor = choose(Tot, nInMix-NKnown)) %>%
+    dplyr::select(
+      pop, WhichKnown, NCombinationsThatExplain, NKnown, NExplain, Divisor) %>%
+    dplyr::arrange(pop, NKnown) -> likelihoodsNomatch
 
-    # Honestly what the common case is.
-    # you have some mixture and it contains some rare haplotype
-      tidyr::expand_grid(pop=totalsByPop$pop,
-                         NKnown=0:length(knownHaps)) %>%
-      dplyr::left_join(totalsByPop, by='pop') %>%
-      dplyr::mutate(WhichKnown="Not explainable",
-                    NCombinationsThatExplain=0,
-                    NExplain  = 0,
-                    Divisor = choose(Tot, nInMix-NKnown)) %>%
-      dplyr::select(
-        pop, WhichKnown, NCombinationsThatExplain, NKnown, NExplain, Divisor) %>%
-      dplyr::arrange(pop, NKnown) -> likelihoods
+
+  # we have some list of known haplotypes
+  # we first insure that any haplotype that is hypothesized to be known
+  # is in fact consistent with the mixture
+  #if (length(knownHaps)>0) {
+    # by index (1..knownHaps)
+    # which are consistent with the mixture
+
+    if (length(knownHaps)>0) {
+      knownHapsConsistent <- whodun[ whodun > nrow(genCount)] - nrow(genCount)
+      knownHapsInconsistent <- seq(1, length(knownHaps), 1)[ !(1:length(knownHaps) %in% knownHapsConsistent) ]
+    } else {
+      knownHapsConsistent <- c()
+      knownHapsInconsistent <- c()
+    }
+
+    combinator <- function(tot) {
+
+        unlist(
+          lapply(0:tot, function(i) combn(tot, i, simplify=F))
+          , recursive=F )
+
+    }
+
+    # of the known haplotypes (by index), 1,2,3
+    # generate the powerset: {}, 1, 2, 3, 1;2, 1;3, 2;3, 1;2;3
+    # compute the likelihood given that the specified haplotypes are "knowns"
+    powersetCombs <-
+      tidyr::expand_grid(
+        Combos=
+        combinator( length(knownHaps)),
+      ) %>%
+      dplyr::mutate(
+        NKnown=lengths(Combos),
+        Idx=1:dplyr::n()
+      ) %>%
+      tidyr::unnest_longer(col=Combos) %>%
+      dplyr::group_by(Idx) %>%
+      dplyr::summarize(
+        Comb=paste(Combos,collapse=","),
+        NKnown=dplyr::n(),
+        Feasibility=
+          ifelse(
+            sum( ! is.na(Combos) & Combos %in% knownHapsInconsistent)==0,
+            "Feasible",
+            "Infeasible"
+        ),
+        .groups='keep'
+      ) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(NKnown <= nInMix) %>%
+      dplyr::mutate(
+        Comb= ifelse(Comb  =="NA", "", Comb  ),
+        NKnown = ifelse(Comb=="", 0, NKnown))
 
 
-  } else {
+    likesAndFeasible <-
+      dplyr::left_join(likelihoodsNomatch, powersetCombs, by="NKnown") %>%
+      # NAs from JOIN.
+      # they're feasible. The infeasible category is the one we're worried about
+      dplyr::mutate(Feasibility = ifelse(is.na(Feasibility), "Feasible", Feasibility),
+             Divisor=      ifelse(Feasibility=="Infeasible", 0, Divisor))  %>%# in which case, we want
+      # a likelihood of 0
+      dplyr::select(-WhichKnown, -Idx) %>%
+      dplyr::rename(WhichKnown=Comb) %>%
+      dplyr::filter(NKnown <= length(knownHaps))
+
+  #}
+
+  if (length(explainy)>0) {
     # convert the explaining haplotypes as indexes into long form
     # and wrt to Sequence IDs
     tibble::tibble(SeqID=explainy, Combo=1:length(explainy)) %>%
@@ -162,7 +232,7 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
 
 
     #sequence IDs have no population affiliation. This creates a lookup table
-    # that let's us query the number of times each Sequence ID was fond in each population
+    # that let's us query the number of times each Sequence ID was found in each population
     # once for each Combo (combination of haplotypes that explain the mixture),
     # and then applies the LUT to see how often each sequence ID is associated with some population
     tidyr::expand_grid(Combo=1:max(explainLong$Combo), pop=unique(genomes$pop)) %>%
@@ -208,7 +278,22 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
        # and give some pretty sorting...
      dplyr::arrange(pop, NKnown) -> likelihoods
 
-  }
+   if (length(knownHaps)>0) {
+    dplyr::bind_rows(
+      dplyr::anti_join(likesAndFeasible,
+                      likelihoods,
+                      by=c("pop", "WhichKnown")),
+     likelihoods) %>%
+     dplyr::mutate(Feasibility= ifelse(is.na(Feasibility), "Feasible", Feasibility)) -> likesAndFeasible
+
+   } else {
+     likesAndFeasible <- likelihoods
+   }
+
+ }
+
+ likelihoods <- likesAndFeasible
+
  # use the method of Ge, Budowle and Charkaborty
  # and compute the log-likelihood, with a clopper and pearson upper bound
  likelihoods$LogLikelihood_GBC <- log10(
@@ -261,7 +346,7 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
       pop=1:length(knownHaps),
       Count = as.integer( pop %in% knownsThatFit),
       CountExcludingKnown   =0,
-      Tot = 1) %>%
+      Tot = ifelse(Count > 0, 1, 0)) %>%
       dplyr::mutate(pop=paste0("Known haplotype ", pop)) %>%
       dplyr::bind_rows( rmneLongByPop ) -> rmneLongByPop
   }
@@ -270,9 +355,6 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
    rmneLongByPop$LogRMNEUB <- log10(
      purrr::map2_dbl(rmneLongByPop$Count, rmneLongByPop$Tot, clopperHelper, quantile=clopperQuantile)
     )
-   rmneLongByPop$LogRMNE_ExcludeKnowns_UB <- log10(
-     purrr::map2_dbl(rmneLongByPop$CountExcludingKnown, rmneLongByPop$Tot, clopperHelper, quantile=clopperQuantile)
-   )
 
    if (giveExplainy) {
      return( list(rmneLongByPop, likelihoods, explainy))
@@ -282,7 +364,9 @@ semicontinuousWrapper <- function(genomes, genCount, rcrs, pos0, pos1, alleles, 
 }
 
 clopperHelper <- function(s, tot, quantile) {
-  PropCIs::exactci(s, tot, quantile)$conf.int[2]
+  ifelse(tot>0,
+    PropCIs::exactci(s, tot, quantile)$conf.int[2],
+    NA)
 }
 
 #' Estimates a naive (frequency-based) log10-likelihood of a set of observed alleles
