@@ -1,0 +1,5 @@
+We welcome any and all code contributions to this project.
+For details consider using the git pull mechanisms, and
+if you have questions, please do not hesitate to ask.
+-August
+august DOT woerner AT unthsc DOT edu
